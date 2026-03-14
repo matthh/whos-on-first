@@ -341,6 +341,21 @@ export default function Home() {
       )}
 
       {activeTab === "history" && <History entries={roster.history} />}
+
+      {/* Version */}
+      <div className="text-center text-[10px] text-gray-300 mt-8">
+        v1.0 · Built{" "}
+        {process.env.BUILD_TIMESTAMP
+          ? new Date(process.env.BUILD_TIMESTAMP).toLocaleString("en-US", {
+              timeZone: "America/Los_Angeles",
+              month: "short",
+              day: "numeric",
+              hour: "numeric",
+              minute: "2-digit",
+              hour12: true,
+            })
+          : "dev"}
+      </div>
     </div>
   );
 }
