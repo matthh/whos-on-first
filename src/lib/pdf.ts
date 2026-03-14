@@ -2,41 +2,79 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { Player, GameSheet, TOTAL_INNINGS } from "./types";
 
-export function generatePDF(
+/**
+ * Load the pennant logo as a data URL for embedding in the PDF.
+ * Called once and cached.
+ */
+let pennantCache: string | null = null;
+
+async function loadPennant(): Promise<string | null> {
+  if (pennantCache) return pennantCache;
+  try {
+    const res = await fetch("/logo.png");
+    const blob = await res.blob();
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        pennantCache = reader.result as string;
+        resolve(pennantCache);
+      };
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
+
+export async function generatePDF(
   players: Player[],
   sheet: GameSheet,
   teamName: string,
   logoDataUrl?: string | null
-): jsPDF {
+): Promise<jsPDF> {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "letter" });
-
   const present = players.filter((p) => !p.absent).sort((a, b) => a.rank - b.rank);
   const pageWidth = doc.internal.pageSize.getWidth();
 
-  let startY = 18;
+  let startY = 10;
 
-  // Logo if provided
-  if (logoDataUrl) {
+  // Pennant logo — centered at top
+  const pennant = await loadPennant();
+  if (pennant) {
     try {
-      doc.addImage(logoDataUrl, "PNG", 14, 10, 15, 15);
-      startY = 18;
+      const logoW = 50;
+      const logoH = 16;
+      doc.addImage(pennant, "PNG", (pageWidth - logoW) / 2, startY, logoW, logoH);
+      startY += logoH + 4;
     } catch {
-      // Skip logo on error
+      // skip
     }
   }
 
-  // Title
+  // Team logo + title on same line
+  let titleX = 14;
+  if (logoDataUrl) {
+    try {
+      doc.addImage(logoDataUrl, "PNG", 14, startY - 2, 10, 10);
+      titleX = 27;
+    } catch {
+      // skip
+    }
+  }
+
   doc.setFontSize(14);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(60, 60, 60);
   const title = `${teamName.toUpperCase()} — DEFENSIVE POSITIONS`;
   const titleWidth = doc.getTextWidth(title);
-  doc.text(title, (pageWidth - titleWidth) / 2, startY);
+  const centerX = (pageWidth - titleWidth) / 2;
+  doc.text(title, logoDataUrl ? Math.max(titleX, centerX) : centerX, startY + 5);
 
-  // Orange accent line under title
+  // Orange accent line
   doc.setDrawColor(230, 160, 0);
   doc.setLineWidth(0.8);
-  doc.line(20, startY + 4, pageWidth - 20, startY + 4);
+  doc.line(20, startY + 9, pageWidth - 20, startY + 9);
 
   // Table
   const headers = [
@@ -45,17 +83,17 @@ export function generatePDF(
   ];
 
   const rows = present.map((player) => {
-    const inningCells = Array.from({ length: TOTAL_INNINGS }, (_, inn) => {
-      const assignment = sheet[inn][player.id];
-      if (assignment === "Rover") return "ROV";
-      if (assignment === "Bench") return "BENCH";
-      return assignment || "—";
+    const cells = Array.from({ length: TOTAL_INNINGS }, (_, inn) => {
+      const a = sheet[inn][player.id];
+      if (a === "Rover") return "ROV";
+      if (a === "Bench") return "BENCH";
+      return a || "—";
     });
-    return [player.name.toUpperCase(), ...inningCells];
+    return [player.name.toUpperCase(), ...cells];
   });
 
   autoTable(doc, {
-    startY: startY + 8,
+    startY: startY + 13,
     head: [headers],
     body: rows,
     theme: "grid",
@@ -84,19 +122,16 @@ export function generatePDF(
     },
     didParseCell(data) {
       if (data.section === "body" && data.column.index >= 1) {
-        const val = String(data.cell.raw);
-        if (val === "BENCH") {
+        if (String(data.cell.raw) === "BENCH") {
           data.cell.styles.fillColor = [210, 210, 210];
           data.cell.styles.textColor = [80, 80, 80];
         }
       }
     },
-    alternateRowStyles: {
-      fillColor: [255, 255, 255],
-    },
+    alternateRowStyles: { fillColor: [255, 255, 255] },
   });
 
-  // Absent players note
+  // Absent note
   const absent = players.filter((p) => p.absent);
   if (absent.length > 0) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -104,11 +139,7 @@ export function generatePDF(
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(150, 150, 150);
-    doc.text(
-      `Absent: ${absent.map((p) => p.name).join(", ")}`,
-      14,
-      tableEnd + 6
-    );
+    doc.text(`Absent: ${absent.map((p) => p.name).join(", ")}`, 14, tableEnd + 6);
   }
 
   return doc;

@@ -173,9 +173,9 @@ export default function Home() {
     setActiveTab("roster");
   }, []);
 
-  const handleExportPDF = useCallback(() => {
+  const handleExportPDF = useCallback(async () => {
     if (!roster || !gameSheet) return;
-    const doc = generatePDF(roster.players, gameSheet, teamName, logoDataUrl);
+    const doc = await generatePDF(roster.players, gameSheet, teamName, logoDataUrl);
     doc.save(`game-sheet-${new Date().toISOString().slice(0, 10)}.pdf`);
   }, [roster, gameSheet, teamName, logoDataUrl]);
 
@@ -194,10 +194,13 @@ export default function Home() {
   return (
     <div className="min-h-screen max-w-2xl mx-auto px-4 py-6">
       {/* Header */}
-      <header className="flex items-center gap-3 mb-6">
-        {/* App pennant logo */}
-        <img src="/logo.png" alt="Who's On First" className="h-10 object-contain" />
-        <div className="flex-1">
+      <header className="mb-6">
+        {/* App pennant logo — large, centered */}
+        <div className="flex justify-center mb-4">
+          <img src="/logo.png" alt="Who's On First" className="h-16 object-contain" />
+        </div>
+        {/* Team info */}
+        <div>
           {/* Team logo: click to replace, hidden file input */}
           <input
             ref={logoInputRef}
@@ -206,7 +209,7 @@ export default function Home() {
             onChange={handleLogoUpload}
             className="hidden"
           />
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 justify-center">
             <button
               onClick={() => logoInputRef.current?.click()}
               className="flex-shrink-0 w-8 h-8 rounded bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors overflow-hidden"
@@ -222,11 +225,12 @@ export default function Home() {
               type="text"
               value={teamName}
               onChange={(e) => handleTeamNameChange(e.target.value)}
-              className="text-2xl font-bold text-[#002d62] bg-transparent border-none outline-none w-full"
+              className="text-2xl font-bold text-[#002d62] bg-transparent border-none outline-none text-center"
               placeholder="Team Name"
+              style={{ width: `${Math.max(teamName.length, 8)}ch` }}
             />
           </div>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-500 text-center">
             Game Day Defensive Roster
           </p>
         </div>

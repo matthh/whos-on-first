@@ -1,100 +1,107 @@
-import {
-  Player,
-  Position,
-  Assignment,
-  GameSheet,
-  TOTAL_INNINGS,
-} from "./types";
-
-// ── Constants ────────────────────────────────────────────────────────
-
 /**
- * 13-player bench schedule. Top-4 players bench as late as possible:
- *   Rank 4 → Inn 2, Rank 3 → Inn 3, Rank 2 → Inn 4, Rank 1 → Inn 5
- * No top-4 player benches in inning 1. Max 1 top-4 per inning.
- * Bottom 5 (ranks 9-13) are the double-sitters.
- * Double-sit pairs avoid forbidden (2,4) and (2,5) gaps.
+ * Who's On First — Defensive Position Scheduler
+ *
+ * Constraints (all enforced, never violated):
+ *  1. 10 on field per inning (6 IF + 4 OF)
+ *  2. No same position in consecutive active innings
+ *  3. Every player gets at least 1 OF inning per game
+ *  4. No 3+ consecutive OF innings
+ *  5. No OF immediately before or after a bench inning
+ *  6. No consecutive bench innings
+ *  7. Fairness: no double-sit before everyone sits once
+ *  8. Max 1 top-4 player benched per inning
+ *  9. Top-4 players bench as late as possible (no top-4 in inning 1)
+ * 10. 1B: only top-4 players eligible
+ * 11. Pitcher: only top-6 players eligible
+ * 12. Max 2 of any single position per player per game
  */
-const BENCH_13: number[][] = [
-  [13, 12, 8],        // Inn 1: bottom players only, 0 top-4
-  [4, 10, 6],         // Inn 2: rank 4 + mid/lower
-  [3, 11, 7],         // Inn 3: rank 3 + mid/lower
-  [2, 9, 5],          // Inn 4: rank 2 + mid/lower
-  [1, 13, 11],        // Inn 5: rank 1 last + 2 double-sitters (2nd sit)
-  [12, 10, 9],        // Inn 6: 3 double-sitters (2nd sit)
-];
 
-const ALL_POSITIONS: Position[] = [
-  "1B", "P", "2B", "SS", "3B", "C", "RF", "LF", "Rover", "CF",
-];
-const OF_SET = new Set<Position>(["RF", "LF", "Rover", "CF"]);
+import { Player, Position, Assignment, GameSheet, TOTAL_INNINGS } from "./types";
 
-function isOF(pos: string): boolean { return OF_SET.has(pos as Position); }
+// ── Position sets ───────────────────────────────────────────────────
 
-function eligible(rank: number, pos: Position): boolean {
+const ALL_POS: Position[] = ["1B","P","2B","SS","3B","C","RF","LF","Rover","CF"];
+const OF = new Set(["RF","LF","Rover","CF"]);
+
+function isOF(p: string): boolean { return OF.has(p); }
+
+function canPlay(rank: number, pos: Position): boolean {
   if (pos === "1B" && rank > 4) return false;
   if (pos === "P" && rank > 6) return false;
   return true;
 }
 
-// ── Bench Schedule ──────────────────────────────────────────────────
+// ── Bench schedules ─────────────────────────────────────────────────
+// Top-4 bench as late as possible. No top-4 in inning 1.
+// Double-sitters are the bottom 5 (ranks 9-13 for 13 players).
+
+const BENCH: Record<number, number[][]> = {
+  10: [[], [], [], [], [], []],
+  11: [[11], [10], [9], [8], [7], [1]],
+  12: [[12,11], [10,9], [8,4], [7,3], [6,2], [5,1]],
+  13: [
+    [13, 12, 8],     // Inn 1: no top-4
+    [4, 10, 6],      // Inn 2: rank 4 first top-4
+    [3, 11, 7],      // Inn 3: rank 3
+    [2, 9, 5],       // Inn 4: rank 2
+    [1, 13, 11],     // Inn 5: rank 1 last; 2 double-sitters
+    [12, 10, 9],     // Inn 6: 3 double-sitters
+  ],
+};
 
 function buildBench(players: Player[]): Set<string>[] {
   const n = players.length;
-  const r = [...players].sort((a, b) => a.rank - b.rank);
-  if (n === 10) return Array.from({ length: 6 }, () => new Set());
-  if (n === 11) return [11,10,9,8,7,1].map(k => new Set([r[k-1].id]));
-  if (n === 12) return [[12,11],[10,9],[8,4],[7,3],[6,2],[5,1]]
-    .map(ks => new Set(ks.map(k => r[k-1].id)));
-  return BENCH_13.map(ks => new Set(ks.map(k => r[k-1].id)));
+  const byRank = [...players].sort((a, b) => a.rank - b.rank);
+  const template = BENCH[n];
+  if (!template) throw new Error(`Need 10-13 players, got ${n}`);
+  return template.map(ranks =>
+    new Set(ranks.map(r => byRank[r - 1].id))
+  );
 }
 
-// ── OF Eligibility ──────────────────────────────────────────────────
+// ── OF eligibility ──────────────────────────────────────────────────
 
-/** Returns set of innings where player CANNOT play outfield. */
-function ofBlocked(pid: string, bench: Set<string>[]): Set<number> {
-  const blocked = new Set<number>();
-  for (let i = 0; i < 6; i++) {
-    if (bench[i].has(pid)) { blocked.add(i); continue; }
-    if (i > 0 && bench[i-1].has(pid)) blocked.add(i);
-    if (i < 5 && bench[i+1].has(pid)) blocked.add(i);
+/** Compute which innings each player is BLOCKED from playing OF. */
+function computeOFBlocked(players: Player[], bench: Set<string>[]): Map<string, Set<number>> {
+  const map = new Map<string, Set<number>>();
+  for (const p of players) {
+    const blocked = new Set<number>();
+    for (let i = 0; i < TOTAL_INNINGS; i++) {
+      if (bench[i].has(p.id)) { blocked.add(i); continue; }
+      if (i > 0 && bench[i - 1].has(p.id)) blocked.add(i);
+      if (i < TOTAL_INNINGS - 1 && bench[i + 1].has(p.id)) blocked.add(i);
+    }
+    map.set(p.id, blocked);
   }
-  return blocked;
+  return map;
 }
 
-// ── Unified Solver ──────────────────────────────────────────────────
+// ── Core solver ─────────────────────────────────────────────────────
 
 /**
- * Solve one inning: assign all 10 positions to 10 active players.
+ * Generator that yields valid position assignments for one inning.
+ * Each yielded value is a Map<playerId, Position>.
  *
- * Constraints enforced:
- *   1. Eligibility: 1B top-4, P top-6
- *   2. No same position as previous active inning
- *   3. Max 2 of any position per game
- *   4. Exactly 4 OF positions per inning
- *   5. No OF if bench-adjacent (OF blocked)
- *   6. No 3+ consecutive OF innings
- *
- * Uses MCV heuristic: most-constrained player assigned first.
+ * Uses MCV heuristic and constraint pruning.
  */
-function solveInning(
+function* solveInning(
   active: Player[],
   inn: number,
   sheet: GameSheet,
   posCounts: Map<string, Map<string, number>>,
   blocked: Map<string, Set<number>>,
-  ofTally: Map<string, number>
-): Map<string, Position> | null {
-  const n = active.length; // 10
+  ofCounts: Map<string, number>,
+): Generator<Map<string, Position>> {
+  const n = active.length;
 
-  // Count valid positions per player (MCV heuristic)
-  function countValid(p: Player): number {
+  // MCV: sort by number of valid positions (ascending)
+  function validCount(p: Player): number {
     let c = 0;
-    for (const pos of ALL_POSITIONS) {
-      if (!eligible(p.rank, pos)) continue;
+    for (const pos of ALL_POS) {
+      if (!canPlay(p.rank, pos)) continue;
       if (isOF(pos) && blocked.get(p.id)!.has(inn)) continue;
       if (inn > 0) {
-        const prev = sheet[inn-1][p.id];
+        const prev = sheet[inn - 1][p.id];
         if (prev && prev !== "Bench" && prev === pos) continue;
       }
       const cnt = posCounts.get(p.id)!.get(pos) || 0;
@@ -104,41 +111,50 @@ function solveInning(
     return c;
   }
 
-  // Sort: most constrained first (fewest valid positions)
-  const ordered = [...active].sort((a, b) => countValid(a) - countValid(b));
+  const ordered = [...active].sort((a, b) => validCount(a) - validCount(b));
 
   const result = new Map<string, Position>();
   const used = new Set<Position>();
+  let yieldCount = 0;
+  const MAX_YIELDS = 200; // limit to prevent runaway
 
-  function solve(idx: number, ofCount: number): boolean {
-    if (idx === n) return ofCount === 4;
+  function* bt(idx: number, ofCount: number): Generator<Map<string, Position>> {
+    if (yieldCount >= MAX_YIELDS) return;
+
+    if (idx === n) {
+      if (ofCount === 4) {
+        yieldCount++;
+        yield new Map(result);
+      }
+      return;
+    }
 
     const player = ordered[idx];
     const remaining = n - idx;
     const ofNeeded = 4 - ofCount;
 
-    // Pruning
-    if (ofNeeded > remaining || ofNeeded < 0) return false;
-    // If all remaining must be OF, only try OF positions
-    // If no more OF allowed, only try IF positions
-    const mustAllOF = ofNeeded === remaining;
-    const noMoreOF = ofNeeded === 0;
+    // Pruning: impossible to reach exactly 4 OF
+    if (ofNeeded > remaining || ofNeeded < 0) return;
 
-    for (const pos of ALL_POSITIONS) {
+    for (const pos of ALL_POS) {
+      if (yieldCount >= MAX_YIELDS) return;
       if (used.has(pos)) continue;
 
       const posIsOF = isOF(pos);
-      if (mustAllOF && !posIsOF) continue;
-      if (noMoreOF && posIsOF) continue;
 
-      if (!eligible(player.rank, pos)) continue;
+      // Must all remaining be OF? Or no more OF allowed?
+      if (ofNeeded === remaining && !posIsOF) continue;
+      if (ofNeeded === 0 && posIsOF) continue;
 
-      // OF blocked
+      // Eligibility
+      if (!canPlay(player.rank, pos)) continue;
+
+      // OF blocked (bench adjacency)
       if (posIsOF && blocked.get(player.id)!.has(inn)) continue;
 
-      // No consecutive same position
+      // No same position as previous active inning
       if (inn > 0) {
-        const prev = sheet[inn-1][player.id];
+        const prev = sheet[inn - 1][player.id];
         if (prev && prev !== "Bench" && prev === pos) continue;
       }
 
@@ -147,62 +163,7 @@ function solveInning(
       if (cnt >= 2) continue;
 
       // No 3+ consecutive OF
-      if (posIsOF) {
-        let consec = 0;
-        for (let p = inn - 1; p >= 0; p--) {
-          const pa = sheet[p][player.id];
-          if (!pa || pa === "Bench") break;
-          if (isOF(pa)) consec++; else break;
-        }
-        if (consec >= 2) continue; // would make 3
-      }
-
-      // Pruning: check OF count feasibility after this assignment
-      const newOF = ofCount + (posIsOF ? 1 : 0);
-      const afterRemaining = remaining - 1;
-      const afterNeeded = 4 - newOF;
-      if (afterNeeded > afterRemaining || afterNeeded < 0) continue;
-
-      result.set(player.id, pos);
-      used.add(pos);
-
-      if (solve(idx + 1, newOF)) return true;
-
-      result.delete(player.id);
-      used.delete(pos);
-    }
-
-    return false;
-  }
-
-  // Try with max-2 constraint
-  if (solve(0, 0)) return result;
-
-  // Relax max-2 but keep everything else
-  result.clear();
-  used.clear();
-
-  function solveRelaxed(idx: number, ofCount: number): boolean {
-    if (idx === n) return ofCount === 4;
-    const player = ordered[idx];
-    const remaining = n - idx;
-    const ofNeeded = 4 - ofCount;
-    if (ofNeeded > remaining || ofNeeded < 0) return false;
-    const mustAllOF = ofNeeded === remaining;
-    const noMoreOF = ofNeeded === 0;
-
-    for (const pos of ALL_POSITIONS) {
-      if (used.has(pos)) continue;
-      const posIsOF = isOF(pos);
-      if (mustAllOF && !posIsOF) continue;
-      if (noMoreOF && posIsOF) continue;
-      if (!eligible(player.rank, pos)) continue;
-      if (posIsOF && blocked.get(player.id)!.has(inn)) continue;
-      if (inn > 0) {
-        const prev = sheet[inn-1][player.id];
-        if (prev && prev !== "Bench" && prev === pos) continue;
-      }
-      if (posIsOF) {
+      if (posIsOF && inn >= 2) {
         let consec = 0;
         for (let p = inn - 1; p >= 0; p--) {
           const pa = sheet[p][player.id];
@@ -211,127 +172,90 @@ function solveInning(
         }
         if (consec >= 2) continue;
       }
+
+      // OF count feasibility after this
       const newOF = ofCount + (posIsOF ? 1 : 0);
-      if (4 - newOF > remaining - 1 || 4 - newOF < 0) continue;
+      if (4 - newOF > remaining - 1) continue;
 
       result.set(player.id, pos);
       used.add(pos);
-      if (solveRelaxed(idx + 1, newOF)) return true;
+      yield* bt(idx + 1, newOF);
       result.delete(player.id);
       used.delete(pos);
     }
-    return false;
   }
 
-  if (solveRelaxed(0, 0)) return result;
-  return null;
+  yield* bt(0, 0);
 }
 
-// ── Main ────────────────────────────────────────────────────────────
+// ── Main entry point ────────────────────────────────────────────────
 
 export function generateGameSheet(allPlayers: Player[]): GameSheet {
   const present = allPlayers.filter(p => !p.absent).sort((a, b) => a.rank - b.rank);
-  const count = present.length;
-  if (count < 10) throw new Error(`Need at least 10 present players, got ${count}.`);
-  if (count > 13) throw new Error(`Maximum 13 present players, got ${count}.`);
+  const n = present.length;
+  if (n < 10) throw new Error(`Need at least 10 present players, got ${n}.`);
+  if (n > 13) throw new Error(`Maximum 13 present players, got ${n}.`);
 
   const bench = buildBench(present);
+  const blocked = computeOFBlocked(present, bench);
 
-  // Pre-compute OF blocked innings
-  const blockedMap = new Map<string, Set<number>>();
-  for (const p of present) blockedMap.set(p.id, ofBlocked(p.id, bench));
-
-  const sheet: GameSheet = Array.from({ length: 6 }, () => ({}));
+  const sheet: GameSheet = Array.from({ length: TOTAL_INNINGS }, () => ({}));
   const posCounts = new Map<string, Map<string, number>>();
-  const ofTally = new Map<string, number>();
-  present.forEach(p => { posCounts.set(p.id, new Map()); ofTally.set(p.id, 0); });
+  const ofCounts = new Map<string, number>();
+  present.forEach(p => { posCounts.set(p.id, new Map()); ofCounts.set(p.id, 0); });
 
   // Mark bench
-  for (let inn = 0; inn < 6; inn++)
-    for (const pid of bench[inn]) sheet[inn][pid] = "Bench";
+  for (let i = 0; i < TOTAL_INNINGS; i++)
+    for (const pid of bench[i]) sheet[i][pid] = "Bench";
 
-  // Solve with cross-inning backtracking
+  // Solve all innings with cross-inning backtracking
   function solveAll(inn: number): boolean {
-    if (inn >= 6) {
-      // Verify every player got at least 1 OF
+    if (inn >= TOTAL_INNINGS) {
+      // Final check: every player must have at least 1 OF
       for (const p of present) {
-        if (ofTally.get(p.id)! === 0) {
-          // Check if player was active at all
-          const activeCount = 6 - Array.from({length: 6}).filter((_, i) =>
-            bench[i].has(p.id)
-          ).length;
-          if (activeCount > 0) return false; // needs OF but didn't get any
-        }
+        const bc = Array.from({ length: TOTAL_INNINGS }).filter((_, i) =>
+          bench[i].has(p.id)
+        ).length;
+        if (TOTAL_INNINGS - bc > 0 && ofCounts.get(p.id)! === 0) return false;
       }
       return true;
     }
 
     const active = present.filter(p => !bench[inn].has(p.id));
-    const assignment = solveInning(active, inn, sheet, posCounts, blockedMap, ofTally);
+    const gen = solveInning(active, inn, sheet, posCounts, blocked, ofCounts);
 
-    if (!assignment) return false;
-
-    // Apply
-    for (const [pid, pos] of assignment) {
-      sheet[inn][pid] = pos;
-      const counts = posCounts.get(pid)!;
-      counts.set(pos, (counts.get(pos) || 0) + 1);
-      if (isOF(pos)) ofTally.set(pid, (ofTally.get(pid) || 0) + 1);
-    }
-
-    if (solveAll(inn + 1)) return true;
-
-    // Undo and try alternatives
-    for (const [pid, pos] of assignment) {
-      sheet[inn][pid] = bench[inn].has(pid) ? "Bench" : undefined as unknown as Assignment;
-      const counts = posCounts.get(pid)!;
-      counts.set(pos, counts.get(pos)! - 1);
-      if (isOF(pos)) ofTally.set(pid, ofTally.get(pid)! - 1);
-    }
-
-    // The solver only returns one solution per call, so to get alternatives
-    // we need to exclude the first solution and try again.
-    // We do this by temporarily adding a constraint that blocks this exact assignment.
-    // In practice, the MCV heuristic + constraint propagation usually finds the
-    // right solution on the first try, so this backtracking is rarely needed.
-    return false;
-  }
-
-  if (!solveAll(0)) {
-    // If cross-inning backtracking fails (because solveInning only returns 1 solution),
-    // fall back to sequential solving without the "every player gets OF" check
-    // and let the validator report it
-    for (let inn = 0; inn < 6; inn++) {
-      const active = present.filter(p => !bench[inn].has(p.id));
-      // Clear any partial assignments
-      for (const p of active) {
-        if (sheet[inn][p.id] && sheet[inn][p.id] !== "Bench") {
-          const pos = sheet[inn][p.id] as Position;
-          const counts = posCounts.get(p.id)!;
-          counts.set(pos, (counts.get(pos) || 0) - 1);
-        }
-        delete sheet[inn][p.id];
-      }
-
-      const assignment = solveInning(active, inn, sheet, posCounts, blockedMap, ofTally);
-      if (!assignment) {
-        throw new Error(
-          `Cannot satisfy constraints for inning ${inn + 1}. ` +
-          `Try adjusting player ranks or disabling a constraint.`
-        );
-      }
+    for (const assignment of gen) {
+      // Apply
       for (const [pid, pos] of assignment) {
         sheet[inn][pid] = pos;
         const counts = posCounts.get(pid)!;
         counts.set(pos, (counts.get(pos) || 0) + 1);
-        if (isOF(pos)) ofTally.set(pid, (ofTally.get(pid) || 0) + 1);
+        if (isOF(pos)) ofCounts.set(pid, ofCounts.get(pid)! + 1);
+      }
+
+      if (solveAll(inn + 1)) return true;
+
+      // Undo
+      for (const [pid, pos] of assignment) {
+        sheet[inn][pid] = "Bench"; // will be re-marked or overwritten
+        const counts = posCounts.get(pid)!;
+        counts.set(pos, counts.get(pos)! - 1);
+        if (isOF(pos)) ofCounts.set(pid, ofCounts.get(pid)! - 1);
       }
     }
+
+    return false;
   }
 
-  // Re-mark bench (in case undo cleared them)
-  for (let inn = 0; inn < 6; inn++)
-    for (const pid of bench[inn]) sheet[inn][pid] = "Bench";
+  if (!solveAll(0)) {
+    throw new Error(
+      "Cannot satisfy all constraints. Try adjusting player ranks or removing a constraint."
+    );
+  }
+
+  // Re-mark bench (undo may have cleared some)
+  for (let i = 0; i < TOTAL_INNINGS; i++)
+    for (const pid of bench[i]) sheet[i][pid] = "Bench";
 
   return sheet;
 }
@@ -344,22 +268,24 @@ export function validateGameSheet(
 ): string[] {
   const v: string[] = [];
 
-  for (let inn = 0; inn < 6; inn++) {
-    const active = presentPlayers.filter(p => sheet[inn][p.id] && sheet[inn][p.id] !== "Bench");
+  for (let i = 0; i < TOTAL_INNINGS; i++) {
+    const active = presentPlayers.filter(p => sheet[i][p.id] && sheet[i][p.id] !== "Bench");
+
     if (active.length !== 10)
-      v.push(`Inning ${inn+1}: ${active.length} on field (expected 10)`);
+      v.push(`Inning ${i+1}: ${active.length} on field (expected 10)`);
 
     for (const p of presentPlayers)
-      if (!sheet[inn][p.id]) v.push(`Inning ${inn+1}: ${p.name} unassigned`);
+      if (!sheet[i][p.id]) v.push(`Inning ${i+1}: ${p.name} unassigned`);
 
-    const poss = active.map(p => sheet[inn][p.id]);
+    const poss = active.map(p => sheet[i][p.id]);
     if (new Set(poss).size !== poss.length)
-      v.push(`Inning ${inn+1}: duplicate positions`);
+      v.push(`Inning ${i+1}: duplicate positions`);
 
     for (const p of active) {
-      const pos = sheet[inn][p.id];
-      if (pos === "1B" && p.rank > 4) v.push(`Inning ${inn+1}: ${p.name} at 1B (needs top 4)`);
-      if (pos === "P" && p.rank > 6) v.push(`Inning ${inn+1}: ${p.name} at P (needs top 6)`);
+      if (sheet[i][p.id] === "1B" && p.rank > 4)
+        v.push(`Inning ${i+1}: ${p.name} at 1B (top 4 only)`);
+      if (sheet[i][p.id] === "P" && p.rank > 6)
+        v.push(`Inning ${i+1}: ${p.name} at P (top 6 only)`);
     }
   }
 
@@ -367,9 +293,10 @@ export function validateGameSheet(
     let of = 0, cof = 0, mof = 0, cb = 0;
     const pc = new Map<string, number>();
 
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < TOTAL_INNINGS; i++) {
       const a = sheet[i][p.id];
       if (!a) continue;
+
       if (a === "Bench") {
         cb++; cof = 0;
         if (cb > 1) v.push(`${p.name}: consecutive bench innings ${i} & ${i+1}`);
@@ -379,20 +306,25 @@ export function validateGameSheet(
         if (isOF(a)) { of++; cof++; mof = Math.max(mof, cof); }
         else cof = 0;
       }
+
       if (i > 0 && a !== "Bench" && sheet[i-1][p.id] !== "Bench" && sheet[i-1][p.id] === a)
         v.push(`${p.name}: same position (${a}) in innings ${i} & ${i+1}`);
+
       if (isOF(a)) {
         if (i > 0 && sheet[i-1][p.id] === "Bench")
           v.push(`${p.name}: OF in inning ${i+1} after bench`);
-        if (i < 5 && sheet[i+1]?.[p.id] === "Bench")
+        if (i < TOTAL_INNINGS - 1 && sheet[i+1]?.[p.id] === "Bench")
           v.push(`${p.name}: OF in inning ${i+1} before bench`);
       }
     }
+
     if (mof >= 3) v.push(`${p.name}: ${mof} consecutive OF innings`);
     for (const [pos, c] of pc)
       if (c >= 3) v.push(`${p.name}: plays ${pos} ${c} times (max 2)`);
-    const bc = Array.from({length:6}).filter((_,i) => sheet[i][p.id] === "Bench").length;
-    if (6 - bc > 0 && of === 0) v.push(`${p.name}: no outfield inning`);
+
+    const bc = Array.from({length: TOTAL_INNINGS}).filter((_, i) => sheet[i][p.id] === "Bench").length;
+    if (TOTAL_INNINGS - bc > 0 && of === 0)
+      v.push(`${p.name}: no outfield inning`);
   }
 
   return v;
