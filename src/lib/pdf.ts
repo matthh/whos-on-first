@@ -96,5 +96,20 @@ export function generatePDF(
     },
   });
 
+  // Absent players note
+  const absent = players.filter((p) => p.absent);
+  if (absent.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const tableEnd = ((doc as any).lastAutoTable?.finalY as number) ?? 120;
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(150, 150, 150);
+    doc.text(
+      `Absent: ${absent.map((p) => p.name).join(", ")}`,
+      14,
+      tableEnd + 6
+    );
+  }
+
   return doc;
 }

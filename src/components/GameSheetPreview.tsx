@@ -24,6 +24,7 @@ export default function GameSheetPreview({
   onStartOver,
 }: GameSheetPreviewProps) {
   const present = players.filter((p) => !p.absent).sort((a, b) => a.rank - b.rank);
+  const absent = players.filter((p) => p.absent).sort((a, b) => a.rank - b.rank);
 
   return (
     <div className="space-y-4">
@@ -100,6 +101,14 @@ export default function GameSheetPreview({
           </tbody>
         </table>
       </div>
+
+      {/* Absent players */}
+      {absent.length > 0 && (
+        <div className="text-sm text-gray-400">
+          <span className="font-medium">Absent: </span>
+          {absent.map((p) => p.name).join(", ")}
+        </div>
+      )}
 
       {/* Action buttons */}
       <div className="flex gap-3">
