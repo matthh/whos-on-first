@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Player, GameSheet, RosterData } from "@/lib/types";
+import { Player, GameSheet } from "@/lib/types";
 import { generateGameSheet, validateGameSheet } from "@/lib/scheduler";
 import { loadRoster, saveRoster, addHistoryEntry, clearAbsences } from "@/lib/storage";
 import { generatePDF } from "@/lib/pdf";
@@ -10,6 +10,7 @@ import RosterList from "@/components/RosterList";
 import GameSheetPreview from "@/components/GameSheetPreview";
 import History from "@/components/History";
 import ConstraintsPanel from "@/components/ConstraintsPanel";
+import { RosterData, HistoryEntry } from "@/lib/types";
 
 type Tab = "roster" | "preview" | "history";
 
@@ -84,12 +85,7 @@ export default function Home() {
       const maxId = players.length > 0 ? Math.max(...players.map((p) => parseInt(p.id))) : 0;
       return [
         ...players,
-        {
-          id: String(maxId + 1),
-          name: "",
-          rank: maxRank + 1,
-          absent: false,
-        },
+        { id: String(maxId + 1), name: "", rank: maxRank + 1, absent: false },
       ];
     });
   }, [updatePlayers]);
@@ -105,6 +101,10 @@ export default function Home() {
     [updatePlayers]
   );
 
+  const handleTeamNameChange = useCallback((name: string) => {
+    setTeamName(name);
+  }, []);
+
   const handleLogoUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -117,6 +117,12 @@ export default function Home() {
     reader.readAsDataURL(file);
   }, []);
 
+  const handleRemoveLogo = useCallback(() => {
+    setLogoDataUrl(null);
+    localStorage.removeItem("whos-on-first-logo");
+    if (logoInputRef.current) logoInputRef.current.value = "";
+  }, []);
+
   const handleToggleConstraint = useCallback((id: string) => {
     setConstraints((prev) => {
       const updated = prev.map((c) =>
@@ -127,40 +133,36 @@ export default function Home() {
     });
   }, []);
 
-  const handleRemoveLogo = useCallback(() => {
-    setLogoDataUrl(null);
-    localStorage.removeItem("whos-on-first-logo");
-    if (logoInputRef.current) logoInputRef.current.value = "";
-  }, []);
+  const runGenerate = useCallback(
+    (saveHistory: boolean) => {
+      if (!roster) return;
+      setError(null);
+      try {
+        const sheet = generateGameSheet(roster.players);
+        const present = roster.players.filter((p) => !p.absent);
+        const v = validateGameSheet(sheet, present);
+        setGameSheet(sheet);
+        setViolations(v);
 
-  const runGenerate = useCallback((saveHistory: boolean) => {
-    if (!roster) return;
-    setError(null);
+        if (saveHistory) {
+          const today = new Date().toLocaleDateString("en-US", {
+            weekday: "short",
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          });
+          const updated = addHistoryEntry(roster, today);
+          const cleared = clearAbsences(updated);
+          setRoster(cleared);
+        }
 
-    try {
-      const sheet = generateGameSheet(roster.players);
-      const present = roster.players.filter((p) => !p.absent);
-      const v = validateGameSheet(sheet, present);
-      setGameSheet(sheet);
-      setViolations(v);
-
-      if (saveHistory) {
-        const today = new Date().toLocaleDateString("en-US", {
-          weekday: "short",
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-        });
-        const updated = addHistoryEntry(roster, today);
-        const cleared = clearAbsences(updated);
-        setRoster(cleared);
+        setActiveTab("preview");
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to generate schedule");
       }
-
-      setActiveTab("preview");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to generate schedule");
-    }
-  }, [roster]);
+    },
+    [roster]
+  );
 
   const handleGenerate = useCallback(() => runGenerate(true), [runGenerate]);
   const handleRerun = useCallback(() => runGenerate(false), [runGenerate]);
@@ -240,7 +242,7 @@ export default function Home() {
               <input
                 type="text"
                 value={teamName}
-                onChange={(e) => setTeamName(e.target.value)}
+                onChange={(e) => handleTeamNameChange(e.target.value)}
                 className="border border-gray-300 rounded px-2 py-1 text-sm flex-1"
                 placeholder="Team name"
               />
@@ -289,7 +291,7 @@ export default function Home() {
             <div className="text-center py-12 space-y-4">
               <h2 className="text-lg font-bold text-gray-600">Set Up Your Roster</h2>
               <p className="text-sm text-gray-400">
-                Add 10–13 players to get started. Drag to rank them — best player at top.
+                Add 10-13 players to get started. Drag to rank them — best player at top.
               </p>
               <button
                 onClick={handleAddPlayer}
