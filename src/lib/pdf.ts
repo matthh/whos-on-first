@@ -97,7 +97,8 @@ export function generatePDF(
   posRows.push(benchRow);
 
   // Get the Y position after the first table
-  const firstTableEnd = (doc as unknown as Record<string, number>).lastAutoTable?.finalY ?? 90;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const firstTableEnd = ((doc as any).lastAutoTable?.finalY as number) ?? 90;
 
   autoTable(doc, {
     startY: firstTableEnd + 10,
