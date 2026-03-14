@@ -195,39 +195,39 @@ export default function Home() {
     <div className="min-h-screen max-w-2xl mx-auto px-4 py-6">
       {/* Header */}
       <header className="flex items-center gap-3 mb-6">
-        {/* Logo: click to replace, hidden file input */}
-        <input
-          ref={logoInputRef}
-          type="file"
-          accept="image/*"
-          onChange={handleLogoUpload}
-          className="hidden"
-        />
-        <button
-          onClick={() => logoInputRef.current?.click()}
-          className="flex-shrink-0 w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors overflow-hidden"
-          title={logoDataUrl ? "Click to change logo" : "Click to add logo"}
-        >
-          {logoDataUrl ? (
-            <img src={logoDataUrl} alt="Team logo" className="w-10 h-10 object-contain" />
-          ) : (
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#999" strokeWidth="1.5">
-              <rect x="2" y="2" width="16" height="16" rx="2" />
-              <circle cx="7" cy="7" r="1.5" />
-              <path d="M2 14l4-4 3 3 4-5 5 6" />
-            </svg>
-          )}
-        </button>
+        {/* App pennant logo */}
+        <img src="/logo.png" alt="Who's On First" className="h-10 object-contain" />
         <div className="flex-1">
+          {/* Team logo: click to replace, hidden file input */}
           <input
-            type="text"
-            value={teamName}
-            onChange={(e) => handleTeamNameChange(e.target.value)}
-            className="text-2xl font-bold text-[#002d62] bg-transparent border-none outline-none w-full"
-            placeholder="Team Name"
+            ref={logoInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleLogoUpload}
+            className="hidden"
           />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => logoInputRef.current?.click()}
+              className="flex-shrink-0 w-8 h-8 rounded bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors overflow-hidden"
+              title={logoDataUrl ? "Click to change team logo" : "Click to add team logo"}
+            >
+              {logoDataUrl ? (
+                <img src={logoDataUrl} alt="Team logo" className="w-7 h-7 object-contain" />
+              ) : (
+                <span className="text-gray-400 text-xs">+</span>
+              )}
+            </button>
+            <input
+              type="text"
+              value={teamName}
+              onChange={(e) => handleTeamNameChange(e.target.value)}
+              className="text-2xl font-bold text-[#002d62] bg-transparent border-none outline-none w-full"
+              placeholder="Team Name"
+            />
+          </div>
           <p className="text-sm text-gray-500">
-            Who&apos;s On First — Game Day Roster
+            Game Day Defensive Roster
           </p>
         </div>
       </header>
