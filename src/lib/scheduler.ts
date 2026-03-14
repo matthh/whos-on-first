@@ -20,7 +20,14 @@ import { Player, Position, Assignment, GameSheet, TOTAL_INNINGS } from "./types"
 
 // ── Position sets ───────────────────────────────────────────────────
 
+// Base position list — used for lower-ranked players
 const ALL_POS: Position[] = ["1B","P","2B","SS","3B","C","RF","LF","Rover","CF"];
+
+// Premium infield positions — top players try these first
+const PREMIUM_IF: Position[] = ["1B","P","SS","2B","3B","C","RF","LF","Rover","CF"];
+
+// Outfield-first — lower-ranked players try OF first to keep top players in IF
+const OF_FIRST: Position[] = ["RF","LF","Rover","CF","C","3B","2B","SS","P","1B"];
 const OF = new Set(["RF","LF","Rover","CF"]);
 
 function isOF(p: string): boolean { return OF.has(p); }
@@ -111,7 +118,13 @@ function* solveInning(
     return c;
   }
 
-  const ordered = [...active].sort((a, b) => validCount(a) - validCount(b));
+  // MCV sort: fewest valid positions first, then higher rank number first
+  // (lower-ranked players assigned first → they get OF, freeing IF for top players)
+  const ordered = [...active].sort((a, b) => {
+    const diff = validCount(a) - validCount(b);
+    if (diff !== 0) return diff;
+    return b.rank - a.rank; // lower-ranked first on tie
+  });
 
   const result = new Map<string, Position>();
   const used = new Set<Position>();
@@ -136,7 +149,11 @@ function* solveInning(
     // Pruning: impossible to reach exactly 4 OF
     if (ofNeeded > remaining || ofNeeded < 0) return;
 
-    for (const pos of ALL_POS) {
+    // Top-ranked players try premium infield first; lower-ranked try OF first
+    // This maximizes top players in key IF positions (1B, P, SS, 2B, 3B)
+    const posOrder = player.rank <= 6 ? PREMIUM_IF : OF_FIRST;
+
+    for (const pos of posOrder) {
       if (yieldCount >= MAX_YIELDS) return;
       if (used.has(pos)) continue;
 
