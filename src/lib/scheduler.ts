@@ -8,8 +8,20 @@ import {
 
 // ── Constants ────────────────────────────────────────────────────────
 
+/**
+ * 13-player bench schedule. Top-4 players bench as late as possible:
+ *   Rank 4 → Inn 2, Rank 3 → Inn 3, Rank 2 → Inn 4, Rank 1 → Inn 5
+ * No top-4 player benches in inning 1. Max 1 top-4 per inning.
+ * Bottom 5 (ranks 9-13) are the double-sitters.
+ * Double-sit pairs avoid forbidden (2,4) and (2,5) gaps.
+ */
 const BENCH_13: number[][] = [
-  [12, 13, 2], [10, 8, 6], [11, 5, 4], [9, 3, 7], [13, 11, 1], [10, 9, 12],
+  [13, 12, 8],        // Inn 1: bottom players only, 0 top-4
+  [4, 10, 6],         // Inn 2: rank 4 + mid/lower
+  [3, 11, 7],         // Inn 3: rank 3 + mid/lower
+  [2, 9, 5],          // Inn 4: rank 2 + mid/lower
+  [1, 13, 11],        // Inn 5: rank 1 last + 2 double-sitters (2nd sit)
+  [12, 10, 9],        // Inn 6: 3 double-sitters (2nd sit)
 ];
 
 const ALL_POSITIONS: Position[] = [
@@ -32,7 +44,7 @@ function buildBench(players: Player[]): Set<string>[] {
   const r = [...players].sort((a, b) => a.rank - b.rank);
   if (n === 10) return Array.from({ length: 6 }, () => new Set());
   if (n === 11) return [11,10,9,8,7,1].map(k => new Set([r[k-1].id]));
-  if (n === 12) return [[12,2],[10,8],[11,4],[9,6],[7,1],[5,3]]
+  if (n === 12) return [[12,11],[10,9],[8,4],[7,3],[6,2],[5,1]]
     .map(ks => new Set(ks.map(k => r[k-1].id)));
   return BENCH_13.map(ks => new Set(ks.map(k => r[k-1].id)));
 }
