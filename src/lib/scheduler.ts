@@ -101,30 +101,9 @@ function* solveInning(
 ): Generator<Map<string, Position>> {
   const n = active.length;
 
-  // MCV: sort by number of valid positions (ascending)
-  function validCount(p: Player): number {
-    let c = 0;
-    for (const pos of ALL_POS) {
-      if (!canPlay(p.rank, pos)) continue;
-      if (isOF(pos) && blocked.get(p.id)!.has(inn)) continue;
-      if (inn > 0) {
-        const prev = sheet[inn - 1][p.id];
-        if (prev && prev !== "Bench" && prev === pos) continue;
-      }
-      const cnt = posCounts.get(p.id)!.get(pos) || 0;
-      if (cnt >= 2) continue;
-      c++;
-    }
-    return c;
-  }
-
-  // MCV sort: fewest valid positions first, then higher rank number first
-  // (lower-ranked players assigned first → they get OF, freeing IF for top players)
-  const ordered = [...active].sort((a, b) => {
-    const diff = validCount(a) - validCount(b);
-    if (diff !== 0) return diff;
-    return b.rank - a.rank; // lower-ranked first on tie
-  });
+  // Sort: best-ranked players first — they get first pick of premium IF positions.
+  // The position ordering (PREMIUM_IF for top-6, OF_FIRST for lower) handles the rest.
+  const ordered = [...active].sort((a, b) => a.rank - b.rank);
 
   const result = new Map<string, Position>();
   const used = new Set<Position>();
