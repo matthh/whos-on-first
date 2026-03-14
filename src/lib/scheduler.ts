@@ -122,6 +122,18 @@ function assignInning(
         if (prev && prev !== "Bench" && prev === pos) continue;
       }
 
+      // No 3+ consecutive OF innings
+      if (posIsOF && inn >= 2) {
+        let consecOF = 0;
+        for (let prev = inn - 1; prev >= 0; prev--) {
+          const prevAssign = sheet[prev][player.id];
+          if (prevAssign === "Bench") break;
+          if (isOutfield(prevAssign)) consecOF++;
+          else break;
+        }
+        if (consecOF >= 2) continue; // would make 3+
+      }
+
       // Max 2 per position per game
       const currentPosCount = posCounts.get(player.id)!.get(pos) || 0;
       if (currentPosCount >= 2) continue;
@@ -175,6 +187,17 @@ function assignInning(
       if (inn > 0) {
         const prev = sheet[inn - 1][player.id];
         if (prev && prev !== "Bench" && prev === pos) continue;
+      }
+      // No 3+ consecutive OF
+      if (posIsOF && inn >= 2) {
+        let consecOF = 0;
+        for (let prev = inn - 1; prev >= 0; prev--) {
+          const pa = sheet[prev][player.id];
+          if (pa === "Bench") break;
+          if (isOutfield(pa)) consecOF++;
+          else break;
+        }
+        if (consecOF >= 2) continue;
       }
       const newOFCount = ofCount + (posIsOF ? 1 : 0);
       if (4 - newOFCount > remaining - 1) continue;
