@@ -51,17 +51,28 @@ function buildPositionOrders(fieldPositions: string[]) {
 // Top restricted players bench as late as possible when enabled.
 // Double-sitters are the bottom players.
 
+/**
+ * Bench schedules for 6-inning, 10-field games.
+ * Designed so that every inning has enough OF-eligible players (≥4)
+ * AND enough top-ranked IF players for restricted positions (1B, P).
+ *
+ * Key insight: bench adjacency (OF blocked in innings before/after bench)
+ * means we must spread bench assignments to avoid blocking too many
+ * top-6 players from the same inning's IF pool.
+ *
+ * 13-player double-sitters: ranks 9,10,11,12,13
+ */
 const BENCH_6INN: Record<number, number[][]> = {
   10: [[], [], [], [], [], []],
   11: [[11], [10], [9], [8], [7], [1]],
   12: [[12,11], [10,9], [8,4], [7,3], [6,2], [5,1]],
   13: [
-    [13, 12, 8],     // Inn 1: no top-4
-    [4, 10, 6],      // Inn 2: rank 4 first top-4
-    [3, 11, 7],      // Inn 3: rank 3
-    [2, 9, 5],       // Inn 4: rank 2
+    [13, 8, 5],      // Inn 1: 0 top-4
+    [4, 12, 7],      // Inn 2: rank 4 first top-4
+    [3, 11, 6],      // Inn 3: rank 3
+    [2, 10, 9],      // Inn 4: rank 2
     [1, 13, 11],     // Inn 5: rank 1 last; 2 double-sitters
-    [12, 10, 9],     // Inn 6: 3 double-sitters
+    [9, 10, 12],     // Inn 6: 3 double-sitters
   ],
 };
 
