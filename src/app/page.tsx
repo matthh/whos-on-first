@@ -194,12 +194,15 @@ export default function Home() {
   return (
     <div className="min-h-screen max-w-2xl mx-auto px-4 py-6">
       {/* Header */}
-      <header className="mb-6">
+      <header className="mb-6 text-center">
         {/* App pennant logo — large, centered */}
-        <div className="flex justify-center mb-4">
-          <img src="/logo.png" alt="Who's On First" className="h-16 object-contain" />
+        <div className="flex justify-center mb-2">
+          <img src="/logo.png" alt="Who's On First" className="h-28 object-contain" />
         </div>
-        {/* Team info */}
+        <p className="text-sm text-gray-500 mb-4">
+          Game Day Defensive Roster
+        </p>
+        {/* Team info — smaller, below */}
         <div>
           {/* Team logo: click to replace, hidden file input */}
           <input
@@ -212,27 +215,24 @@ export default function Home() {
           <div className="flex items-center gap-2 justify-center">
             <button
               onClick={() => logoInputRef.current?.click()}
-              className="flex-shrink-0 w-8 h-8 rounded bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors overflow-hidden"
+              className="flex-shrink-0 w-6 h-6 rounded bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors overflow-hidden"
               title={logoDataUrl ? "Click to change team logo" : "Click to add team logo"}
             >
               {logoDataUrl ? (
-                <img src={logoDataUrl} alt="Team logo" className="w-7 h-7 object-contain" />
+                <img src={logoDataUrl} alt="Team logo" className="w-5 h-5 object-contain" />
               ) : (
-                <span className="text-gray-400 text-xs">+</span>
+                <span className="text-gray-400 text-[10px]">+</span>
               )}
             </button>
             <input
               type="text"
               value={teamName}
               onChange={(e) => handleTeamNameChange(e.target.value)}
-              className="text-2xl font-bold text-[#002d62] bg-transparent border-none outline-none text-center"
+              className="text-lg font-bold text-[#002d62] bg-transparent border-none outline-none text-center"
               placeholder="Team Name"
               style={{ width: `${Math.max(teamName.length, 8)}ch` }}
             />
           </div>
-          <p className="text-sm text-gray-500 text-center">
-            Game Day Defensive Roster
-          </p>
         </div>
       </header>
 
