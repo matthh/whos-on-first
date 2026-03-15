@@ -243,9 +243,9 @@ export default function Home() {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ date: entry.date, players: entry.players }),
             })
-              .then(() => {
-                // Refresh history from DB
-                setHistoryEntries((prev) => [entry, ...prev]);
+              .then((r) => r.json())
+              .then((data) => {
+                setHistoryEntries((prev) => [{ ...entry, id: data.id }, ...prev]);
               })
               .catch(() => {});
           }
@@ -482,7 +482,21 @@ export default function Home() {
         />
       )}
 
-      {activeTab === "history" && <History entries={historyEntries} />}
+      {activeTab === "history" && (
+        <History
+          entries={historyEntries}
+          onDeleteEntry={(index) => {
+            const entry = historyEntries[index];
+            setHistoryEntries((prev) => prev.filter((_, i) => i !== index));
+            // Delete from DB if it has an ID
+            if (entry && (entry as Record<string, unknown>).id) {
+              fetch(`/api/history?id=${(entry as Record<string, unknown>).id}`, {
+                method: "DELETE",
+              }).catch(() => {});
+            }
+          }}
+        />
+      )}
 
       </>)}
     </div>
