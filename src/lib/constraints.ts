@@ -1,110 +1,224 @@
+// ── Types ────────────────────────────────────────────────────────────
+
 export interface Constraint {
   id: string;
   label: string;
   description: string;
   enabled: boolean;
-  editable: boolean; // some constraints are core and can't be disabled
+  editable: boolean;
+  category: "positioning" | "optimizing";
 }
 
-export const DEFAULT_CONSTRAINTS: Constraint[] = [
+export interface PositionRestriction {
+  position: string;
+  topN: number;
+  enabled: boolean;
+}
+
+export interface ConstraintConfig {
+  positioning: Record<string, boolean>; // constraint id -> enabled
+  restrictions: PositionRestriction[];
+  topPlayerPriority: boolean;
+  benchTopLate: boolean;
+  onboardingComplete: boolean;
+  teamName: string;
+  logoDataUrl: string | null;
+}
+
+// ── Default constraints ──────────────────────────────────────────────
+
+export const POSITIONING_CONSTRAINTS: Constraint[] = [
   {
     id: "field-size",
     label: "10 players on field every inning",
     description: "6 infield + 4 outfield positions filled each inning",
     enabled: true,
     editable: false,
+    category: "positioning",
   },
   {
     id: "no-consecutive-position",
     label: "No same position in consecutive innings",
-    description: "A player cannot play the same position in two consecutive active innings",
+    description:
+      "A player cannot play the same position in two consecutive active innings",
     enabled: true,
     editable: true,
+    category: "positioning",
   },
   {
     id: "min-outfield",
     label: "Every player gets at least 1 outfield inning",
-    description: "Ensures every player spends time in the outfield during the game",
+    description:
+      "Ensures every player spends time in the outfield during the game",
     enabled: true,
     editable: true,
+    category: "positioning",
   },
   {
     id: "max-consecutive-of",
     label: "No 3+ consecutive outfield innings",
-    description: "Prevents a player from being stuck in the outfield for too many innings in a row",
+    description:
+      "Prevents a player from being stuck in the outfield for too many innings in a row",
     enabled: true,
     editable: true,
+    category: "positioning",
   },
   {
     id: "of-bench-adjacency",
     label: "No outfield immediately before or after bench",
-    description: "Players transition through infield between bench and outfield assignments",
+    description:
+      "Players transition through infield between bench and outfield assignments",
     enabled: true,
     editable: true,
+    category: "positioning",
   },
   {
     id: "no-consecutive-bench",
     label: "No consecutive bench innings",
     description: "A player cannot sit on the bench two innings in a row",
     enabled: true,
-    editable: true,
+    editable: false,
+    category: "positioning",
   },
   {
     id: "fairness",
     label: "Fairness: no double-sit before everyone sits once",
-    description: "No player sits twice until every player has sat at least once (protects against shortened games)",
+    description:
+      "No player sits twice until every player has sat at least once (protects against shortened games)",
     enabled: true,
-    editable: true,
+    editable: false,
+    category: "positioning",
   },
   {
-    id: "max-top4-benched",
-    label: "Max 1 top-4 player benched per inning",
-    description: "Keeps strong players distributed across innings",
+    id: "max-2-per-position",
+    label: "No player plays same position more than 2x per game",
+    description:
+      "Ensures variety — each player plays any single position at most twice",
     enabled: true,
     editable: true,
-  },
-  {
-    id: "top4-bench-late",
-    label: "Top-4 players bench as late as possible",
-    description: "Best players sit in later innings to maximize early-game competitiveness",
-    enabled: true,
-    editable: true,
-  },
-  {
-    id: "1b-eligibility",
-    label: "1B: only top 4 players eligible",
-    description: "First base requires a strong, reliable fielder",
-    enabled: true,
-    editable: true,
-  },
-  {
-    id: "pitcher-eligibility",
-    label: "Pitcher: only top 6 players eligible",
-    description: "Pitching requires skill — limited to the top half of the roster",
-    enabled: true,
-    editable: true,
+    category: "positioning",
   },
 ];
 
-const STORAGE_KEY = "whos-on-first-constraints";
+export const OPTIMIZING_CONSTRAINTS: Constraint[] = [
+  {
+    id: "position-restrictions",
+    label: "Position restrictions",
+    description:
+      "Limit certain positions to top-ranked players only",
+    enabled: true,
+    editable: true,
+    category: "optimizing",
+  },
+  {
+    id: "top-player-priority",
+    label: "Prioritize top players for infield",
+    description:
+      "Top-ranked players get premium infield positions first",
+    enabled: true,
+    editable: true,
+    category: "optimizing",
+  },
+  {
+    id: "bench-top-late",
+    label: "Top restricted players bench as late as possible",
+    description:
+      "Best players sit in later innings to maximize early-game competitiveness",
+    enabled: true,
+    editable: true,
+    category: "optimizing",
+  },
+];
 
-export function loadConstraints(): Constraint[] {
-  if (typeof window === "undefined") return DEFAULT_CONSTRAINTS;
+export const ALL_CONSTRAINTS: Constraint[] = [
+  ...POSITIONING_CONSTRAINTS,
+  ...OPTIMIZING_CONSTRAINTS,
+];
+
+// ── Default config ───────────────────────────────────────────────────
+
+export const DEFAULT_RESTRICTIONS: PositionRestriction[] = [
+  { position: "1B", topN: 4, enabled: true },
+  { position: "P", topN: 6, enabled: true },
+];
+
+export const DEFAULT_CONFIG: ConstraintConfig = {
+  positioning: Object.fromEntries(
+    POSITIONING_CONSTRAINTS.map((c) => [c.id, c.enabled])
+  ),
+  restrictions: DEFAULT_RESTRICTIONS,
+  topPlayerPriority: true,
+  benchTopLate: true,
+  onboardingComplete: false,
+  teamName: "Astros",
+  logoDataUrl: null,
+};
+
+// ── Persistence ──────────────────────────────────────────────────────
+
+const CONFIG_KEY = "whos-on-first-config";
+
+export function loadConfig(): ConstraintConfig {
+  if (typeof window === "undefined") return DEFAULT_CONFIG;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_CONSTRAINTS;
-    const saved = JSON.parse(raw) as Constraint[];
-    // Merge with defaults to pick up any new constraints
-    return DEFAULT_CONSTRAINTS.map((def) => {
-      const override = saved.find((s) => s.id === def.id);
-      return override ? { ...def, enabled: override.enabled } : def;
-    });
+    const raw = localStorage.getItem(CONFIG_KEY);
+    if (!raw) return DEFAULT_CONFIG;
+    const saved = JSON.parse(raw) as Partial<ConstraintConfig>;
+    // Merge with defaults so new fields are picked up
+    return {
+      ...DEFAULT_CONFIG,
+      ...saved,
+      positioning: {
+        ...DEFAULT_CONFIG.positioning,
+        ...(saved.positioning || {}),
+      },
+      restrictions: saved.restrictions || DEFAULT_CONFIG.restrictions,
+    };
   } catch {
-    return DEFAULT_CONSTRAINTS;
+    return DEFAULT_CONFIG;
   }
 }
 
-export function saveConstraints(constraints: Constraint[]): void {
+export function saveConfig(config: ConstraintConfig): void {
   if (typeof window === "undefined") return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(constraints));
+  localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
 }
+
+// ── Backward-compat re-exports ───────────────────────────────────────
+
+/** @deprecated Use loadConfig() instead */
+export function loadConstraints(): Constraint[] {
+  const config = loadConfig();
+  return ALL_CONSTRAINTS.map((c) => ({
+    ...c,
+    enabled:
+      c.category === "positioning"
+        ? config.positioning[c.id] ?? c.enabled
+        : c.enabled,
+  }));
+}
+
+/** @deprecated Use saveConfig() instead */
+export function saveConstraints(constraints: Constraint[]): void {
+  const config = loadConfig();
+  for (const c of constraints) {
+    if (c.category === "positioning") {
+      config.positioning[c.id] = c.enabled;
+    }
+  }
+  saveConfig(config);
+}
+
+// All available positions for adding new restrictions
+export const AVAILABLE_POSITIONS = [
+  "1B",
+  "P",
+  "2B",
+  "SS",
+  "3B",
+  "C",
+  "RF",
+  "LF",
+  "Rover",
+  "CF",
+];

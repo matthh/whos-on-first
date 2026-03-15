@@ -5,12 +5,17 @@ import { Player, GameSheet } from "@/lib/types";
 import { generateGameSheet, validateGameSheet } from "@/lib/scheduler";
 import { loadRoster, saveRoster, addHistoryEntry, clearAbsences } from "@/lib/storage";
 import { generatePDF } from "@/lib/pdf";
-import { Constraint, loadConstraints, saveConstraints } from "@/lib/constraints";
+import {
+  ConstraintConfig,
+  loadConfig,
+  saveConfig,
+} from "@/lib/constraints";
 import RosterList from "@/components/RosterList";
 import GameSheetPreview from "@/components/GameSheetPreview";
 import History from "@/components/History";
 import ConstraintsPanel from "@/components/ConstraintsPanel";
-import { RosterData, HistoryEntry } from "@/lib/types";
+import Onboarding from "@/components/Onboarding";
+import { RosterData } from "@/lib/types";
 
 type Tab = "roster" | "preview" | "history";
 
@@ -20,32 +25,30 @@ export default function Home() {
   const [gameSheet, setGameSheet] = useState<GameSheet | null>(null);
   const [violations, setViolations] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [teamName, setTeamName] = useState("Astros");
-  const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null);
-  const [constraints, setConstraints] = useState<Constraint[]>([]);
+  const [config, setConfig] = useState<ConstraintConfig | null>(null);
   const [showConstraints, setShowConstraints] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   // Load from localStorage on mount
   useEffect(() => {
+    const savedConfig = loadConfig();
+    setConfig(savedConfig);
     setRoster(loadRoster());
-    const savedName = localStorage.getItem("whos-on-first-team-name");
-    if (savedName) setTeamName(savedName);
-    const savedLogo = localStorage.getItem("whos-on-first-logo");
-    if (savedLogo) setLogoDataUrl(savedLogo);
-    setConstraints(loadConstraints());
+    setShowOnboarding(!savedConfig.onboardingComplete);
+    setLoaded(true);
   }, []);
 
-  // Auto-save
+  // Auto-save roster
   useEffect(() => {
     if (roster) saveRoster(roster);
   }, [roster]);
 
+  // Auto-save config
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("whos-on-first-team-name", teamName);
-    }
-  }, [teamName]);
+    if (config) saveConfig(config);
+  }, [config]);
 
   const updatePlayers = useCallback(
     (updater: (players: Player[]) => Player[]) => {
@@ -101,46 +104,42 @@ export default function Home() {
     [updatePlayers]
   );
 
-  const handleTeamNameChange = useCallback((name: string) => {
-    setTeamName(name);
+  const handleConfigChange = useCallback((newConfig: ConstraintConfig) => {
+    setConfig(newConfig);
   }, []);
 
-  const handleLogoUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      setLogoDataUrl(dataUrl);
-      localStorage.setItem("whos-on-first-logo", dataUrl);
-    };
-    reader.readAsDataURL(file);
-  }, []);
-
-  const handleRemoveLogo = useCallback(() => {
-    setLogoDataUrl(null);
-    localStorage.removeItem("whos-on-first-logo");
-    if (logoInputRef.current) logoInputRef.current.value = "";
-  }, []);
-
-  const handleToggleConstraint = useCallback((id: string) => {
-    setConstraints((prev) => {
-      const updated = prev.map((c) =>
-        c.id === id && c.editable ? { ...c, enabled: !c.enabled } : c
-      );
-      saveConstraints(updated);
-      return updated;
-    });
-  }, []);
+  const handleOnboardingComplete = useCallback(
+    (result: {
+      teamName: string;
+      logoDataUrl: string | null;
+      players: Player[];
+      constraints: ConstraintConfig;
+    }) => {
+      const newConfig = {
+        ...result.constraints,
+        onboardingComplete: true,
+        teamName: result.teamName,
+        logoDataUrl: result.logoDataUrl,
+      };
+      setConfig(newConfig);
+      saveConfig(newConfig);
+      setRoster((prev) => ({
+        players: result.players,
+        history: prev?.history || [],
+      }));
+      setShowOnboarding(false);
+    },
+    []
+  );
 
   const runGenerate = useCallback(
     (saveHistory: boolean) => {
-      if (!roster) return;
+      if (!roster || !config) return;
       setError(null);
       try {
-        const sheet = generateGameSheet(roster.players);
+        const sheet = generateGameSheet(roster.players, config);
         const present = roster.players.filter((p) => !p.absent);
-        const v = validateGameSheet(sheet, present);
+        const v = validateGameSheet(sheet, present, config);
         setGameSheet(sheet);
         setViolations(v);
 
@@ -161,7 +160,7 @@ export default function Home() {
         setError(err instanceof Error ? err.message : "Failed to generate schedule");
       }
     },
-    [roster]
+    [roster, config]
   );
 
   const handleGenerate = useCallback(() => runGenerate(true), [runGenerate]);
@@ -174,12 +173,35 @@ export default function Home() {
   }, []);
 
   const handleExportPDF = useCallback(async () => {
-    if (!roster || !gameSheet) return;
-    const doc = await generatePDF(roster.players, gameSheet, teamName, logoDataUrl);
+    if (!roster || !gameSheet || !config) return;
+    const doc = await generatePDF(
+      roster.players,
+      gameSheet,
+      config.teamName,
+      config.logoDataUrl
+    );
     doc.save(`game-sheet-${new Date().toISOString().slice(0, 10)}.pdf`);
-  }, [roster, gameSheet, teamName, logoDataUrl]);
+  }, [roster, gameSheet, config]);
 
-  if (!roster) {
+  if (!loaded) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-gray-400">Loading...</div>
+      </div>
+    );
+  }
+
+  if (showOnboarding && config) {
+    return (
+      <Onboarding
+        onComplete={handleOnboardingComplete}
+        initialPlayers={roster?.players}
+        initialConfig={config}
+      />
+    );
+  }
+
+  if (!roster || !config) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-gray-400">Loading...</div>
@@ -195,44 +217,23 @@ export default function Home() {
     <div className="min-h-screen max-w-2xl mx-auto px-4 py-6">
       {/* Header */}
       <header className="mb-6 text-center">
-        {/* App pennant logo — large, centered */}
         <div className="flex justify-center mb-2">
           <img src="/logo.png" alt="Who's On First" className="h-28 object-contain" />
         </div>
-        <p className="text-sm text-gray-500 mb-4">
+        <p className="text-sm text-gray-500 mb-2">
           Game Day Defensive Roster
         </p>
-        {/* Team info — smaller, below */}
-        <div>
-          {/* Team logo: click to replace, hidden file input */}
-          <input
-            ref={logoInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handleLogoUpload}
-            className="hidden"
-          />
-          <div className="flex items-center gap-2 justify-center">
-            <button
-              onClick={() => logoInputRef.current?.click()}
-              className="flex-shrink-0 w-6 h-6 rounded bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors overflow-hidden"
-              title={logoDataUrl ? "Click to change team logo" : "Click to add team logo"}
-            >
-              {logoDataUrl ? (
-                <img src={logoDataUrl} alt="Team logo" className="w-5 h-5 object-contain" />
-              ) : (
-                <span className="text-gray-400 text-[10px]">+</span>
-              )}
-            </button>
-            <input
-              type="text"
-              value={teamName}
-              onChange={(e) => handleTeamNameChange(e.target.value)}
-              className="text-lg font-bold text-[#002d62] bg-transparent border-none outline-none text-center"
-              placeholder="Team Name"
-              style={{ width: `${Math.max(teamName.length, 8)}ch` }}
+        <div className="flex items-center gap-2 justify-center">
+          {config.logoDataUrl && (
+            <img
+              src={config.logoDataUrl}
+              alt="Team logo"
+              className="w-6 h-6 object-contain"
             />
-          </div>
+          )}
+          <span className="text-lg font-bold text-[#002d62]">
+            {config.teamName}
+          </span>
         </div>
       </header>
 
@@ -272,8 +273,8 @@ export default function Home() {
           </button>
           {showConstraints && (
             <ConstraintsPanel
-              constraints={constraints}
-              onToggle={handleToggleConstraint}
+              config={config}
+              onChange={handleConfigChange}
               onClose={() => setShowConstraints(false)}
             />
           )}
@@ -283,7 +284,7 @@ export default function Home() {
             <div className="text-center py-12 space-y-4">
               <h2 className="text-lg font-bold text-gray-600">Set Up Your Roster</h2>
               <p className="text-sm text-gray-400">
-                Add 10-13 players to get started. Drag to rank them — best player at top.
+                Add 10-13 players to get started. Drag to rank them -- best player at top.
               </p>
               <button
                 onClick={handleAddPlayer}
@@ -324,8 +325,8 @@ export default function Home() {
           players={roster.players}
           sheet={gameSheet}
           violations={violations}
-          teamName={teamName}
-          logoDataUrl={logoDataUrl}
+          teamName={config.teamName}
+          logoDataUrl={config.logoDataUrl}
           onExportPDF={handleExportPDF}
           onRerun={handleRerun}
           onStartOver={handleStartOver}
