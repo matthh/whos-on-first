@@ -1,6 +1,6 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { Player, GameSheet, TOTAL_INNINGS } from "./types";
+import { Player, GameSheet } from "./types";
 
 /**
  * Load the pennant logo as a data URL for embedding in the PDF.
@@ -31,7 +31,8 @@ export async function generatePDF(
   players: Player[],
   sheet: GameSheet,
   teamName: string,
-  logoDataUrl?: string | null
+  logoDataUrl?: string | null,
+  innings: number = 6
 ): Promise<jsPDF> {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "letter" });
   const present = players.filter((p) => !p.absent).sort((a, b) => a.rank - b.rank);
@@ -79,11 +80,11 @@ export async function generatePDF(
   // Table
   const headers = [
     "PLAYER",
-    ...Array.from({ length: TOTAL_INNINGS }, (_, i) => `INN ${i + 1}`),
+    ...Array.from({ length: innings }, (_, i) => `INN ${i + 1}`),
   ];
 
   const rows = present.map((player) => {
-    const cells = Array.from({ length: TOTAL_INNINGS }, (_, inn) => {
+    const cells = Array.from({ length: innings }, (_, inn) => {
       const a = sheet[inn][player.id];
       if (a === "Rover") return "ROV";
       if (a === "Bench") return "BENCH";

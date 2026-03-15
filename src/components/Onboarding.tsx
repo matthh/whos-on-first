@@ -8,6 +8,9 @@ import {
   POSITIONING_CONSTRAINTS,
   PositionRestriction,
   AVAILABLE_POSITIONS,
+  FIELD_POSITION_PRESETS,
+  DEFAULT_FIELD_POSITIONS,
+  isOutfieldPosition,
 } from "@/lib/constraints";
 import RosterList from "./RosterList";
 
@@ -21,6 +24,8 @@ interface OnboardingProps {
   initialPlayers?: Player[];
   initialConfig?: ConstraintConfig;
 }
+
+const TOTAL_STEPS = 4;
 
 export default function Onboarding({
   onComplete,
@@ -48,6 +53,17 @@ export default function Onboarding({
     initialConfig?.benchTopLate ?? DEFAULT_CONFIG.benchTopLate
   );
   const [newRestrictionPos, setNewRestrictionPos] = useState("");
+
+  // League Rules state
+  const [innings, setInnings] = useState(
+    initialConfig?.innings ?? DEFAULT_CONFIG.innings
+  );
+  const [fieldPositions, setFieldPositions] = useState<string[]>(
+    initialConfig?.fieldPositions || [...DEFAULT_FIELD_POSITIONS]
+  );
+  const [maxInningsPitched, setMaxInningsPitched] = useState<number | null>(
+    initialConfig?.maxInningsPitched ?? DEFAULT_CONFIG.maxInningsPitched
+  );
 
   const logoInputRef = useRef<HTMLInputElement>(null);
 
@@ -106,6 +122,9 @@ export default function Onboarding({
       onboardingComplete: true,
       teamName,
       logoDataUrl,
+      innings,
+      fieldPositions,
+      maxInningsPitched,
     };
     onComplete({ teamName, logoDataUrl, players, constraints: config });
   };
@@ -139,11 +158,37 @@ export default function Onboarding({
     );
   };
 
+  // Determine which preset is active (if any)
+  const activePreset = Object.entries(FIELD_POSITION_PRESETS).find(
+    ([, positions]) =>
+      positions.length === fieldPositions.length &&
+      positions.every((p) => fieldPositions.includes(p))
+  )?.[0] || null;
+
+  const handleSelectPreset = (presetName: string) => {
+    setFieldPositions([...FIELD_POSITION_PRESETS[presetName]]);
+  };
+
+  const handleTogglePosition = (pos: string) => {
+    setFieldPositions((prev) =>
+      prev.includes(pos) ? prev.filter((p) => p !== pos) : [...prev, pos]
+    );
+  };
+
+  // All possible positions across all presets
+  const allKnownPositions = Array.from(
+    new Set(Object.values(FIELD_POSITION_PRESETS).flat())
+  );
+  const infieldPositions = allKnownPositions.filter((p) => !isOutfieldPosition(p));
+  const outfieldPositions = allKnownPositions.filter((p) => isOutfieldPosition(p));
+
+  const fieldSize = fieldPositions.length;
+
   return (
     <div className="min-h-screen max-w-2xl mx-auto px-4 py-8">
       {/* Progress indicator */}
       <div className="flex items-center justify-center gap-2 mb-8">
-        {[1, 2, 3].map((s) => (
+        {Array.from({ length: TOTAL_STEPS }, (_, i) => i + 1).map((s) => (
           <div key={s} className="flex items-center gap-2">
             <div
               className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
@@ -156,7 +201,7 @@ export default function Onboarding({
             >
               {s}
             </div>
-            {s < 3 && (
+            {s < TOTAL_STEPS && (
               <div
                 className={`w-12 h-0.5 ${
                   s < step ? "bg-amber-500" : "bg-gray-200"
@@ -167,8 +212,155 @@ export default function Onboarding({
         ))}
       </div>
 
-      {/* Step 1: Team Setup */}
+      {/* Step 1: League Rules */}
       {step === 1 && (
+        <div className="space-y-6">
+          <div className="text-center mb-4">
+            <div className="flex justify-center mb-4">
+              <img
+                src="/logo.png"
+                alt="Who's On First"
+                className="h-28 object-contain"
+              />
+            </div>
+            <h1 className="text-2xl font-bold text-[#002d62] mb-2">
+              League Rules
+            </h1>
+            <p className="text-gray-500 text-sm">
+              Configure your league&apos;s format before building your roster.
+            </p>
+          </div>
+
+          {/* Number of Innings */}
+          <div className="border border-gray-200 rounded-lg bg-white shadow-sm p-4">
+            <h3 className="font-bold text-sm text-[#002d62] mb-3">
+              Number of Innings
+            </h3>
+            <div className="flex items-center gap-3">
+              <input
+                type="number"
+                min={1}
+                max={9}
+                value={innings}
+                onChange={(e) =>
+                  setInnings(Math.max(1, Math.min(9, parseInt(e.target.value) || 1)))
+                }
+                className="w-20 text-center text-lg font-bold border border-gray-300 rounded-lg py-2 outline-none focus:border-[#002d62] text-[#002d62]"
+              />
+              <span className="text-sm text-gray-500">innings per game</span>
+            </div>
+          </div>
+
+          {/* Field Positions */}
+          <div className="border border-gray-200 rounded-lg bg-white shadow-sm p-4">
+            <h3 className="font-bold text-sm text-[#002d62] mb-3">
+              Field Positions
+            </h3>
+
+            {/* Preset buttons */}
+            <div className="flex gap-2 mb-4">
+              {Object.keys(FIELD_POSITION_PRESETS).map((preset) => (
+                <button
+                  key={preset}
+                  onClick={() => handleSelectPreset(preset)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    activePreset === preset
+                      ? "bg-[#002d62] text-white"
+                      : "border border-gray-300 text-gray-600 hover:border-[#002d62] hover:text-[#002d62]"
+                  }`}
+                >
+                  {preset}
+                </button>
+              ))}
+            </div>
+
+            {/* Position toggles */}
+            <div className="space-y-3">
+              <div>
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                  Infield
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {infieldPositions.map((pos) => (
+                    <button
+                      key={pos}
+                      onClick={() => handleTogglePosition(pos)}
+                      className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                        fieldPositions.includes(pos)
+                          ? "bg-[#002d62] text-white"
+                          : "bg-gray-100 text-gray-400 hover:bg-gray-200"
+                      }`}
+                    >
+                      {pos}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                  Outfield
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {outfieldPositions.map((pos) => (
+                    <button
+                      key={pos}
+                      onClick={() => handleTogglePosition(pos)}
+                      className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                        fieldPositions.includes(pos)
+                          ? "bg-amber-500 text-white"
+                          : "bg-gray-100 text-gray-400 hover:bg-gray-200"
+                      }`}
+                    >
+                      {pos}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-3 text-xs text-gray-400">
+              {fieldPositions.length} positions on field ({fieldPositions.filter(p => !isOutfieldPosition(p)).length} IF + {fieldPositions.filter(p => isOutfieldPosition(p)).length} OF)
+            </div>
+          </div>
+
+          {/* Max Innings Pitched */}
+          <div className="border border-gray-200 rounded-lg bg-white shadow-sm p-4">
+            <h3 className="font-bold text-sm text-[#002d62] mb-3">
+              Max Innings Pitched Per Player
+            </h3>
+            <select
+              value={maxInningsPitched === null ? "" : maxInningsPitched}
+              onChange={(e) => {
+                const val = e.target.value;
+                setMaxInningsPitched(val === "" ? null : parseInt(val));
+              }}
+              className="text-sm border border-gray-300 rounded-lg py-2 px-3 outline-none focus:border-[#002d62] text-gray-700"
+            >
+              <option value="">No Maximum</option>
+              {[1, 2, 3, 4, 5, 6].map((n) => (
+                <option key={n} value={n}>
+                  {n} inning{n > 1 ? "s" : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            onClick={() => setStep(2)}
+            disabled={fieldPositions.length < 1}
+            className={`w-full px-8 py-3 rounded-lg font-bold text-white text-sm transition-colors ${
+              fieldPositions.length >= 1
+                ? "bg-[#002d62] hover:bg-[#003d82]"
+                : "bg-gray-300 cursor-not-allowed"
+            }`}
+          >
+            Next
+          </button>
+        </div>
+      )}
+
+      {/* Step 2: Team Setup */}
+      {step === 2 && (
         <div className="text-center space-y-8">
           <div>
             <div className="flex justify-center mb-4">
@@ -238,7 +430,7 @@ export default function Onboarding({
           </div>
 
           <button
-            onClick={() => setStep(2)}
+            onClick={() => setStep(3)}
             disabled={!teamName.trim()}
             className={`px-8 py-3 rounded-lg font-bold text-white text-sm transition-colors ${
               teamName.trim()
@@ -248,11 +440,20 @@ export default function Onboarding({
           >
             Next
           </button>
+
+          <div>
+            <button
+              onClick={() => setStep(1)}
+              className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              Back
+            </button>
+          </div>
         </div>
       )}
 
-      {/* Step 2: Build Roster */}
-      {step === 2 && (
+      {/* Step 3: Build Roster */}
+      {step === 3 && (
         <div className="space-y-4">
           <div className="text-center mb-6">
             <h1 className="text-xl font-bold text-[#002d62] mb-2">
@@ -267,10 +468,10 @@ export default function Onboarding({
           <div className="text-center mb-2">
             <span
               className={`text-sm font-medium ${
-                players.length >= 10 ? "text-green-600" : "text-amber-600"
+                players.length >= fieldSize ? "text-green-600" : "text-amber-600"
               }`}
             >
-              {players.length} players (need 10-13)
+              {players.length} players (need {fieldSize}-{fieldSize + 3})
             </span>
           </div>
 
@@ -294,7 +495,7 @@ export default function Onboarding({
             />
           )}
 
-          {players.length > 0 && players.length < 13 && (
+          {players.length > 0 && players.length < fieldSize + 3 && (
             <button
               onClick={handleAddPlayer}
               className="w-full py-2 border-2 border-dashed border-amber-400 rounded-lg text-sm text-amber-600 hover:border-amber-500 hover:text-amber-700 font-medium transition-colors"
@@ -305,16 +506,16 @@ export default function Onboarding({
 
           <div className="flex gap-3 pt-4">
             <button
-              onClick={() => setStep(1)}
+              onClick={() => setStep(2)}
               className="px-6 py-3 rounded-lg font-bold text-sm text-gray-500 border border-gray-300 hover:bg-gray-50 transition-colors"
             >
               Back
             </button>
             <button
-              onClick={() => setStep(3)}
-              disabled={players.length < 10}
+              onClick={() => setStep(4)}
+              disabled={players.length < fieldSize}
               className={`flex-1 py-3 rounded-lg font-bold text-white text-sm transition-colors ${
-                players.length >= 10
+                players.length >= fieldSize
                   ? "bg-[#002d62] hover:bg-[#003d82]"
                   : "bg-gray-300 cursor-not-allowed"
               }`}
@@ -325,8 +526,8 @@ export default function Onboarding({
         </div>
       )}
 
-      {/* Step 3: Constraints */}
-      {step === 3 && (
+      {/* Step 4: Constraints */}
+      {step === 4 && (
         <div className="space-y-6">
           <div className="text-center mb-4">
             <h1 className="text-xl font-bold text-[#002d62] mb-2">
@@ -402,7 +603,7 @@ export default function Onboarding({
                   </p>
                   <div className="flex gap-4 items-start">
                     <div className="space-y-0.5">
-                      {Array.from({ length: 13 }, (_, i) => (
+                      {Array.from({ length: Math.min(players.length, 13) || 13 }, (_, i) => (
                         <div
                           key={i}
                           className={`text-[10px] px-2 py-0.5 rounded text-center font-medium ${
@@ -557,7 +758,7 @@ export default function Onboarding({
 
           <div className="flex gap-3 pt-2">
             <button
-              onClick={() => setStep(2)}
+              onClick={() => setStep(3)}
               className="px-6 py-3 rounded-lg font-bold text-sm text-gray-500 border border-gray-300 hover:bg-gray-50 transition-colors"
             >
               Back

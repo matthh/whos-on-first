@@ -5,22 +5,12 @@ export interface Player {
   absent: boolean;
 }
 
-export type Position =
-  | "1B"
-  | "P"
-  | "2B"
-  | "SS"
-  | "3B"
-  | "RF"
-  | "LF"
-  | "Rover"
-  | "CF"
-  | "C";
+export type Position = string;
 
 export type Assignment = Position | "Bench";
 
-// Priority order for position assignment (index 0 = highest priority)
-export const POSITION_PRIORITY: Position[] = [
+// Default position priority order (index 0 = highest priority)
+export const POSITION_PRIORITY: string[] = [
   "1B",
   "P",
   "2B",
@@ -33,10 +23,11 @@ export const POSITION_PRIORITY: Position[] = [
   "C",
 ];
 
-export const INFIELD_POSITIONS: Position[] = ["1B", "P", "2B", "SS", "3B", "C"];
-export const OUTFIELD_POSITIONS: Position[] = ["RF", "LF", "Rover", "CF"];
+export const INFIELD_POSITIONS: string[] = ["1B", "P", "2B", "SS", "3B", "C"];
+export const OUTFIELD_POSITIONS: string[] = ["RF", "LF", "Rover", "CF"];
 
-export const TOTAL_INNINGS = 6;
+/** Default number of innings. Overridable via ConstraintConfig.innings. */
+export const DEFAULT_INNINGS = 6;
 export const FIELD_SIZE = 10;
 
 // GameSheet: assignment[inning][playerId] = Position | "Bench"

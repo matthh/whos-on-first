@@ -23,6 +23,9 @@ export interface ConstraintConfig {
   onboardingComplete: boolean;
   teamName: string;
   logoDataUrl: string | null;
+  innings: number;
+  fieldPositions: string[];
+  maxInningsPitched: number | null;
 }
 
 // ── Default constraints ──────────────────────────────────────────────
@@ -135,6 +138,25 @@ export const ALL_CONSTRAINTS: Constraint[] = [
   ...OPTIMIZING_CONSTRAINTS,
 ];
 
+// ── Field position presets ───────────────────────────────────────────
+
+export const FIELD_POSITION_PRESETS: Record<string, string[]> = {
+  "Standard 9": ["P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF"],
+  "Standard 10 / Coach Pitch": ["1B", "P", "2B", "SS", "3B", "C", "RF", "LF", "Rover", "CF"],
+};
+
+export const DEFAULT_FIELD_POSITIONS = FIELD_POSITION_PRESETS["Standard 10 / Coach Pitch"];
+
+/** Well-known outfield position names. Anything else is infield. */
+export const KNOWN_OF_POSITIONS = new Set([
+  "RF", "LF", "CF", "Rover",
+  "Right Center Field", "Left Center Field",
+]);
+
+export function isOutfieldPosition(pos: string): boolean {
+  return KNOWN_OF_POSITIONS.has(pos);
+}
+
 // ── Default config ───────────────────────────────────────────────────
 
 export const DEFAULT_RESTRICTIONS: PositionRestriction[] = [
@@ -152,6 +174,9 @@ export const DEFAULT_CONFIG: ConstraintConfig = {
   onboardingComplete: false,
   teamName: "Astros",
   logoDataUrl: null,
+  innings: 6,
+  fieldPositions: DEFAULT_FIELD_POSITIONS,
+  maxInningsPitched: null,
 };
 
 // ── Persistence ──────────────────────────────────────────────────────
@@ -173,6 +198,9 @@ export function loadConfig(): ConstraintConfig {
         ...(saved.positioning || {}),
       },
       restrictions: saved.restrictions || DEFAULT_CONFIG.restrictions,
+      innings: saved.innings ?? DEFAULT_CONFIG.innings,
+      fieldPositions: saved.fieldPositions || DEFAULT_CONFIG.fieldPositions,
+      maxInningsPitched: saved.maxInningsPitched !== undefined ? saved.maxInningsPitched : DEFAULT_CONFIG.maxInningsPitched,
     };
   } catch {
     return DEFAULT_CONFIG;
@@ -209,7 +237,7 @@ export function saveConstraints(constraints: Constraint[]): void {
   saveConfig(config);
 }
 
-// All available positions for adding new restrictions
+// All available positions for adding new restrictions (superset across presets)
 export const AVAILABLE_POSITIONS = [
   "1B",
   "P",

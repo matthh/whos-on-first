@@ -178,7 +178,8 @@ export default function Home() {
       roster.players,
       gameSheet,
       config.teamName,
-      config.logoDataUrl
+      config.logoDataUrl,
+      config.innings
     );
     doc.save(`game-sheet-${new Date().toISOString().slice(0, 10)}.pdf`);
   }, [roster, gameSheet, config]);
@@ -210,7 +211,8 @@ export default function Home() {
   }
 
   const presentCount = roster.players.filter((p) => !p.absent).length;
-  const canGenerate = presentCount >= 10 && presentCount <= 13;
+  const fieldSize = config.fieldPositions.length;
+  const canGenerate = presentCount >= fieldSize && presentCount <= fieldSize + 3;
   const hasPlayers = roster.players.length > 0;
 
   return (
@@ -327,6 +329,7 @@ export default function Home() {
           violations={violations}
           teamName={config.teamName}
           logoDataUrl={config.logoDataUrl}
+          innings={config.innings}
           onExportPDF={handleExportPDF}
           onRerun={handleRerun}
           onStartOver={handleStartOver}

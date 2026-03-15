@@ -1,6 +1,6 @@
 "use client";
 
-import { Player, GameSheet, TOTAL_INNINGS } from "@/lib/types";
+import { Player, GameSheet } from "@/lib/types";
 
 interface GameSheetPreviewProps {
   players: Player[];
@@ -8,6 +8,7 @@ interface GameSheetPreviewProps {
   violations: string[];
   teamName: string;
   logoDataUrl?: string | null;
+  innings: number;
   onExportPDF: () => void;
   onRerun: () => void;
   onStartOver: () => void;
@@ -19,6 +20,7 @@ export default function GameSheetPreview({
   violations,
   teamName,
   logoDataUrl,
+  innings,
   onExportPDF,
   onRerun,
   onStartOver,
@@ -63,7 +65,7 @@ export default function GameSheetPreview({
               <th className="px-3 py-2 text-left font-bold text-gray-600 border border-gray-300 whitespace-nowrap">
                 PLAYER
               </th>
-              {Array.from({ length: TOTAL_INNINGS }, (_, i) => (
+              {Array.from({ length: innings }, (_, i) => (
                 <th
                   key={i}
                   className="px-3 py-2 text-center font-bold text-gray-600 border border-gray-300 whitespace-nowrap"
@@ -79,7 +81,7 @@ export default function GameSheetPreview({
                 <td className="px-3 py-2 font-bold text-gray-700 border border-gray-300 whitespace-nowrap">
                   {player.name.toUpperCase()}
                 </td>
-                {Array.from({ length: TOTAL_INNINGS }, (_, inn) => {
+                {Array.from({ length: innings }, (_, inn) => {
                   const assignment = sheet[inn][player.id] || "—";
                   const display = assignment === "Rover" ? "ROV" : assignment === "Bench" ? "BENCH" : assignment;
                   const isBench = assignment === "Bench";
