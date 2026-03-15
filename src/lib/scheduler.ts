@@ -350,46 +350,30 @@ export function generateGameSheet(
   for (let i = 0; i < innings; i++)
     for (const pid of bench[i]) sheet[i][pid] = "Bench";
 
-  function solveAll(inn: number): boolean {
-    if (inn >= innings) {
-      // "Every player gets OF" is validated post-solve, not enforced here.
-      // Enforcing it here causes exponential backtracking.
-      return true;
-    }
-
+  // Solve each inning sequentially (no cross-inning backtracking — too expensive)
+  for (let inn = 0; inn < innings; inn++) {
     const active = present.filter(p => !bench[inn].has(p.id));
     const gen = solveInning(
       active, inn, sheet, posCounts, blocked, ofCounts,
       config, topThreshold, posOrders, pitchCounts
     );
 
-    for (const assignment of gen) {
-      for (const [pid, pos] of assignment) {
-        sheet[inn][pid] = pos;
-        const counts = posCounts.get(pid)!;
-        counts.set(pos, (counts.get(pos) || 0) + 1);
-        if (isOF(pos)) ofCounts.set(pid, ofCounts.get(pid)! + 1);
-        if (pos === "P") pitchCounts.set(pid, pitchCounts.get(pid)! + 1);
-      }
-
-      if (solveAll(inn + 1)) return true;
-
-      for (const [pid, pos] of assignment) {
-        sheet[inn][pid] = "Bench";
-        const counts = posCounts.get(pid)!;
-        counts.set(pos, counts.get(pos)! - 1);
-        if (isOF(pos)) ofCounts.set(pid, ofCounts.get(pid)! - 1);
-        if (pos === "P") pitchCounts.set(pid, pitchCounts.get(pid)! - 1);
-      }
+    const result = gen.next();
+    if (result.done || !result.value) {
+      throw new Error(
+        `Cannot satisfy constraints for inning ${inn + 1}. ` +
+        `Try adjusting player ranks or removing a constraint.`
+      );
     }
 
-    return false;
-  }
-
-  if (!solveAll(0)) {
-    throw new Error(
-      "Cannot satisfy all constraints. Try adjusting player ranks or removing a constraint."
-    );
+    const assignment = result.value;
+    for (const [pid, pos] of assignment) {
+      sheet[inn][pid] = pos;
+      const counts = posCounts.get(pid)!;
+      counts.set(pos, (counts.get(pos) || 0) + 1);
+      if (isOF(pos)) ofCounts.set(pid, ofCounts.get(pid)! + 1);
+      if (pos === "P") pitchCounts.set(pid, pitchCounts.get(pid)! + 1);
+    }
   }
 
   // Re-mark bench

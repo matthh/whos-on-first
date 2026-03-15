@@ -157,8 +157,9 @@ export default function Home() {
               year: "numeric",
             });
             const updated = addHistoryEntry(roster, today);
-            const cleared = clearAbsences(updated);
-            setRoster(cleared);
+            // Don't clear absences — keep them for Rerun.
+            // Absences are cleared when the user goes back to the roster tab.
+            setRoster(updated);
           }
 
           setActiveTab("preview");
