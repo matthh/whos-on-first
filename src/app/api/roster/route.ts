@@ -13,8 +13,7 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     players: roster?.players || [],
-    teamName: user?.teamName || "",
-    logoDataUrl: user?.logoDataUrl || null,
+    config: user?.constraintConfig || null,
   });
 }
 
@@ -23,21 +22,23 @@ export async function PUT(request: NextRequest) {
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await request.json();
-  const { players, teamName, logoDataUrl } = body;
+  const { players, config } = body;
 
   // Upsert roster
-  const [existing] = await db.select().from(rosters).where(eq(rosters.userId, userId)).limit(1);
-  if (existing) {
-    await db.update(rosters).set({ players, updatedAt: new Date() }).where(eq(rosters.id, existing.id));
-  } else {
-    await db.insert(rosters).values({ userId, players });
+  if (players !== undefined) {
+    const [existing] = await db.select().from(rosters).where(eq(rosters.userId, userId)).limit(1);
+    if (existing) {
+      await db.update(rosters).set({ players, updatedAt: new Date() }).where(eq(rosters.id, existing.id));
+    } else {
+      await db.insert(rosters).values({ userId, players });
+    }
   }
 
-  // Update team name and logo on user record
-  const updates: Record<string, unknown> = {};
-  if (teamName !== undefined) updates.teamName = teamName;
-  if (logoDataUrl !== undefined) updates.logoDataUrl = logoDataUrl;
-  if (Object.keys(updates).length > 0) {
+  // Update constraint_config (and teamName/logoDataUrl from config for backwards compat)
+  if (config !== undefined) {
+    const updates: Record<string, unknown> = { constraintConfig: config };
+    if (config.teamName !== undefined) updates.teamName = config.teamName;
+    if (config.logoDataUrl !== undefined) updates.logoDataUrl = config.logoDataUrl;
     await db.update(users).set(updates).where(eq(users.id, userId));
   }
 

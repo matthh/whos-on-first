@@ -10,6 +10,7 @@ export const users = pgTable("users", {
   authProviderId: text("auth_provider_id"),
   teamName: text("team_name"),
   logoDataUrl: text("logo_data_url"),
+  constraintConfig: json("constraint_config"), // ConstraintConfig JSON
   createdAt: timestamp("created_at").defaultNow(),
 });
 

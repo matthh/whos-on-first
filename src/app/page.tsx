@@ -1,14 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Player, GameSheet } from "@/lib/types";
+import { Player, GameSheet, HistoryEntry } from "@/lib/types";
 import { generateGameSheet, validateGameSheet } from "@/lib/scheduler";
-import { loadRoster, saveRoster, addHistoryEntry, clearAbsences } from "@/lib/storage";
+import { addHistoryEntry } from "@/lib/storage";
 import { generatePDF } from "@/lib/pdf";
 import {
   ConstraintConfig,
-  loadConfig,
-  saveConfig,
+  DEFAULT_CONFIG,
 } from "@/lib/constraints";
 import RosterList from "@/components/RosterList";
 import GameSheetPreview from "@/components/GameSheetPreview";
@@ -31,37 +30,90 @@ export default function Home() {
   const [loaded, setLoaded] = useState(false);
   const [userStatus, setUserStatus] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Load user status + localStorage data on mount
-  useEffect(() => {
-    // Check auth status
-    fetch("/api/auth/status")
-      .then((r) => r.ok ? r.json() : null)
-      .then((data) => {
-        if (data?.user) {
-          setUserStatus(data.user.status);
-          setIsAdmin(data.user.role === "admin");
-        }
-      })
-      .catch(() => {});
-
-    const savedConfig = loadConfig();
-    setConfig(savedConfig);
-    setRoster(loadRoster());
-    setShowOnboarding(!savedConfig.onboardingComplete);
-    setLoaded(true);
+  // Debounced save to DB
+  const saveToDb = useCallback((players: Player[], cfg: ConstraintConfig) => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      fetch("/api/roster", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ players, config: cfg }),
+      }).catch(() => {});
+    }, 500);
   }, []);
 
-  // Auto-save roster
+  // Load data from APIs on mount
   useEffect(() => {
-    if (roster) saveRoster(roster);
-  }, [roster]);
+    async function loadData() {
+      try {
+        // Fetch auth status, roster, and history in parallel
+        const [authRes, rosterRes, historyRes] = await Promise.all([
+          fetch("/api/auth/status").then((r) => r.ok ? r.json() : null).catch(() => null),
+          fetch("/api/roster").then((r) => r.ok ? r.json() : null).catch(() => null),
+          fetch("/api/history").then((r) => r.ok ? r.json() : null).catch(() => null),
+        ]);
 
-  // Auto-save config
+        if (authRes?.user) {
+          setUserStatus(authRes.user.status);
+          setIsAdmin(authRes.user.role === "admin");
+        }
+
+        const players = rosterRes?.players || [];
+        const savedConfig = rosterRes?.config || null;
+
+        // Merge saved config with defaults so new fields are picked up
+        const mergedConfig: ConstraintConfig = savedConfig
+          ? {
+              ...DEFAULT_CONFIG,
+              ...savedConfig,
+              positioning: {
+                ...DEFAULT_CONFIG.positioning,
+                ...(savedConfig.positioning || {}),
+              },
+              restrictions: savedConfig.restrictions || DEFAULT_CONFIG.restrictions,
+              innings: savedConfig.innings ?? DEFAULT_CONFIG.innings,
+              fieldPositions: savedConfig.fieldPositions || DEFAULT_CONFIG.fieldPositions,
+              maxInningsPitched: savedConfig.maxInningsPitched !== undefined
+                ? savedConfig.maxInningsPitched
+                : DEFAULT_CONFIG.maxInningsPitched,
+            }
+          : DEFAULT_CONFIG;
+
+        setConfig(mergedConfig);
+        setRoster({ players, history: [] });
+
+        const entries = historyRes?.entries || [];
+        setHistoryEntries(entries.map((e: { date: string; players: HistoryEntry["players"] }) => ({
+          date: e.date,
+          players: e.players,
+        })));
+
+        setShowOnboarding(!mergedConfig.onboardingComplete);
+      } catch {
+        // Fallback to defaults
+        setConfig(DEFAULT_CONFIG);
+        setRoster({ players: [], history: [] });
+        setShowOnboarding(true);
+      }
+      setLoaded(true);
+    }
+    loadData();
+  }, []);
+
+  // Auto-save roster and config to DB when they change (skip initial load)
+  const initialLoadDone = useRef(false);
   useEffect(() => {
-    if (config) saveConfig(config);
-  }, [config]);
+    if (!roster || !config) return;
+    if (!initialLoadDone.current) {
+      initialLoadDone.current = true;
+      return;
+    }
+    saveToDb(roster.players, config);
+  }, [roster, config, saveToDb]);
 
   const updatePlayers = useCallback(
     (updater: (players: Player[]) => Player[]) => {
@@ -135,11 +187,16 @@ export default function Home() {
         logoDataUrl: result.logoDataUrl,
       };
       setConfig(newConfig);
-      saveConfig(newConfig);
-      setRoster((prev) => ({
-        players: result.players,
-        history: prev?.history || [],
-      }));
+      const newPlayers = result.players;
+      setRoster({ players: newPlayers, history: [] });
+
+      // Save to DB immediately (don't wait for debounce)
+      fetch("/api/roster", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ players: newPlayers, config: newConfig }),
+      }).catch(() => {});
+
       setShowOnboarding(false);
     },
     []
@@ -171,8 +228,20 @@ export default function Home() {
             });
             const updated = addHistoryEntry(roster, today);
             // Don't clear absences — keep them for Rerun.
-            // Absences are cleared when the user goes back to the roster tab.
             setRoster(updated);
+
+            // Save history entry to DB
+            const entry = updated.history[0];
+            fetch("/api/history", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ date: entry.date, players: entry.players }),
+            })
+              .then(() => {
+                // Refresh history from DB
+                setHistoryEntries((prev) => [entry, ...prev]);
+              })
+              .catch(() => {});
           }
 
           setActiveTab("preview");
@@ -396,7 +465,7 @@ export default function Home() {
         />
       )}
 
-      {activeTab === "history" && <History entries={roster.history} />}
+      {activeTab === "history" && <History entries={historyEntries} />}
 
       </>)}
 
