@@ -116,44 +116,76 @@ export default function ConstraintsPanel({
               Position Restrictions
             </h4>
 
-            {/* Visual example */}
-            <div className="mb-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-              <p className="text-[11px] text-gray-500 mb-2 font-medium">
-                How it works: restrict positions to your top-ranked players
-              </p>
-              <div className="flex gap-4 items-start">
-                <div className="space-y-0.5">
-                  {Array.from({ length: 13 }, (_, i) => (
-                    <div
-                      key={i}
-                      className={`text-[10px] px-2 py-0.5 rounded text-center font-medium ${
-                        i < 4
-                          ? "bg-amber-100 text-amber-800"
-                          : i < 6
-                          ? "bg-blue-100 text-blue-800"
-                          : "bg-gray-100 text-gray-500"
-                      }`}
-                    >
-                      Player {i + 1}
+            {/* Visual example — dynamic from current restrictions */}
+            {(() => {
+              const enabled = config.restrictions.filter(r => r.enabled);
+              // Sort by topN ascending (most restrictive first)
+              const sorted = [...enabled].sort((a, b) => a.topN - b.topN);
+              // Unique topN values for coloring
+              const uniqueTopN = [...new Set(sorted.map(r => r.topN))].sort((a, b) => a - b);
+              const COLORS = [
+                { bg: "bg-amber-100", text: "text-amber-800", bar: "bg-amber-400", label: "text-amber-700" },
+                { bg: "bg-blue-100", text: "text-blue-800", bar: "bg-blue-400", label: "text-blue-700" },
+                { bg: "bg-rose-100", text: "text-rose-800", bar: "bg-rose-400", label: "text-rose-700" },
+                { bg: "bg-emerald-100", text: "text-emerald-800", bar: "bg-emerald-400", label: "text-emerald-700" },
+                { bg: "bg-purple-100", text: "text-purple-800", bar: "bg-purple-400", label: "text-purple-700" },
+              ];
+              const colorMap = new Map(uniqueTopN.map((topN, i) => [topN, i % COLORS.length]));
+              const maxTopN = sorted.length > 0 ? Math.max(...sorted.map(r => r.topN)) : 0;
+              const playerCount = Math.max(13, maxTopN + 2);
+              // Group restrictions by topN for bracket labels
+              const groups = new Map<number, string[]>();
+              for (const r of sorted) {
+                if (!groups.has(r.topN)) groups.set(r.topN, []);
+                groups.get(r.topN)!.push(r.position);
+              }
+
+              return (
+                <div className="mb-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                  <p className="text-[11px] text-gray-500 mb-2 font-medium">
+                    How it works: restrict positions to your top-ranked players
+                  </p>
+                  <div className="flex gap-4 items-start">
+                    <div className="space-y-0.5">
+                      {Array.from({ length: playerCount }, (_, i) => {
+                        // Find the most restrictive group this player belongs to
+                        let colorIdx = -1;
+                        for (const [topN, idx] of colorMap) {
+                          if (i < topN) { colorIdx = idx; break; }
+                        }
+                        return (
+                          <div
+                            key={i}
+                            className={`text-[10px] px-2 py-0.5 rounded text-center font-medium ${
+                              colorIdx >= 0
+                                ? `${COLORS[colorIdx].bg} ${COLORS[colorIdx].text}`
+                                : "bg-gray-100 text-gray-500"
+                            }`}
+                          >
+                            Player {i + 1}
+                          </div>
+                        );
+                      })}
                     </div>
-                  ))}
-                </div>
-                <div className="space-y-1 pt-0.5">
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-1 h-[52px] bg-amber-400 rounded-full" />
-                    <span className="text-[10px] text-amber-700 font-bold">
-                      1B eligible (top 4)
-                    </span>
+                    <div className="space-y-1 pt-0.5">
+                      {[...groups.entries()].map(([topN, positions]) => {
+                        const cidx = colorMap.get(topN) ?? 0;
+                        const c = COLORS[cidx];
+                        const heightPx = topN * 22; // ~22px per player row
+                        return (
+                          <div key={topN} className="flex items-center gap-1.5">
+                            <div className={`w-1 rounded-full ${c.bar}`} style={{ height: `${heightPx}px` }} />
+                            <span className={`text-[10px] font-bold ${c.label}`}>
+                              {positions.join(", ")} eligible (top {topN})
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-1 h-[78px] bg-blue-400 rounded-full" />
-                    <span className="text-[10px] text-blue-700 font-bold">
-                      P eligible (top 6)
-                    </span>
-                  </div>
                 </div>
-              </div>
-            </div>
+              );
+            })()}
 
             {/* Restriction rows */}
             <div className="space-y-2">
