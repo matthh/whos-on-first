@@ -40,25 +40,25 @@ export async function generatePDF(
 
   let startY = 10;
 
-  // Pennant logo — centered at top
+  // Pennant logo — centered at top, maintaining aspect ratio (2521:1292 ≈ 1.95:1)
   const pennant = await loadPennant();
   if (pennant) {
     try {
-      const logoW = 50;
-      const logoH = 16;
+      const logoW = 70;
+      const logoH = logoW / 1.95; // ~36mm, proper aspect ratio
       doc.addImage(pennant, "PNG", (pageWidth - logoW) / 2, startY, logoW, logoH);
-      startY += logoH + 4;
+      startY += logoH + 3;
     } catch {
       // skip
     }
   }
 
-  // Team logo + title on same line
+  // Team logo (small, next to title)
   let titleX = 14;
   if (logoDataUrl) {
     try {
-      doc.addImage(logoDataUrl, "PNG", 14, startY - 2, 10, 10);
-      titleX = 27;
+      doc.addImage(logoDataUrl, "PNG", 14, startY - 2, 8, 8);
+      titleX = 25;
     } catch {
       // skip
     }
