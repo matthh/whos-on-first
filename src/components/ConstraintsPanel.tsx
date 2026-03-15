@@ -176,7 +176,7 @@ export default function ConstraintsPanel({
                         const cidx = colorMap.get(topN) ?? 0;
                         const c = COLORS[cidx];
                         const barHeight = topN * ROW_H;
-                        const leftOffset = groupIdx * 24 + 8; // space bars apart
+                        const leftOffset = groupIdx * 90 + 8; // space bars apart to avoid text overlap
                         return (
                           <div
                             key={topN}
