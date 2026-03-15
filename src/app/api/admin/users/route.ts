@@ -3,7 +3,7 @@ import { isAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { users } from "@/lib/schema";
 import { eq } from "drizzle-orm";
-import { sendApprovalNotification } from "@/lib/email";
+import { sendApprovalNotification, sendInviteEmail } from "@/lib/email";
 
 export async function GET(request: NextRequest) {
   if (!(await isAdmin(request))) {
@@ -36,6 +36,11 @@ export async function POST(request: NextRequest) {
         status: status || "approved",
       })
       .returning();
+
+    // Send invite email if creating as approved
+    if ((status || "approved") === "approved") {
+      await sendInviteEmail(email.toLowerCase().trim());
+    }
 
     return NextResponse.json({ user }, { status: 201 });
   } catch (err: unknown) {

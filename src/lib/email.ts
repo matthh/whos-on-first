@@ -50,6 +50,27 @@ export async function sendNewSignupNotification(
   );
 }
 
+export async function sendInviteEmail(userEmail: string) {
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://whos-on-first.vercel.app";
+  await sendEmail(
+    userEmail,
+    "You're invited to Who's On First!",
+    `
+    <div style="font-family: sans-serif; max-width: 480px;">
+      <h2>You've been invited!</h2>
+      <p>A coach has invited you to <strong>Who's On First</strong> — the game day defensive roster calculator for youth baseball.</p>
+      <p>Your account is ready to go. Sign in with Google to get started:</p>
+      <ol>
+        <li>Sign in with your Google account</li>
+        <li>Set up your team name and roster</li>
+        <li>Generate your first game day lineup</li>
+      </ol>
+      <p><a href="${baseUrl}/login" style="background: #002d62; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">Sign In to Get Started</a></p>
+    </div>
+    `
+  );
+}
+
 export async function sendApprovalNotification(
   userEmail: string,
   userName: string | null

@@ -16,6 +16,9 @@ export default function AdminPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviting, setInviting] = useState(false);
+  const [inviteMessage, setInviteMessage] = useState<string | null>(null);
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -37,6 +40,32 @@ export default function AdminPage() {
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
+
+  const handleInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inviteEmail.trim()) return;
+    setInviting(true);
+    setInviteMessage(null);
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: inviteEmail.trim(), status: "approved" }),
+      });
+      if (res.status === 409) {
+        setInviteMessage("That email is already registered.");
+        return;
+      }
+      if (!res.ok) throw new Error("Failed to invite");
+      setInviteMessage(`Invitation sent to ${inviteEmail.trim()}`);
+      setInviteEmail("");
+      await fetchUsers();
+    } catch (err) {
+      setInviteMessage(err instanceof Error ? err.message : "Error");
+    } finally {
+      setInviting(false);
+    }
+  };
 
   const updateUser = async (id: number, updates: Record<string, string>) => {
     try {
@@ -87,85 +116,141 @@ export default function AdminPage() {
             <h1 className="text-2xl font-bold text-[#002d62]">Admin</h1>
             <p className="text-sm text-gray-500">Manage coaches</p>
           </div>
-          <a
-            href="/"
-            className="text-sm text-[#002d62] hover:underline"
-          >
+          <a href="/" className="text-sm text-[#002d62] hover:underline">
             Back to app
           </a>
         </div>
       </header>
 
-      <div className="space-y-3">
-        {users.map((user) => (
-          <div
-            key={user.id}
-            className="bg-white border border-gray-200 rounded-lg p-4 flex items-center justify-between gap-4"
+      {/* Invite form */}
+      <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6">
+        <h2 className="text-sm font-bold text-gray-700 mb-3">Invite a Coach</h2>
+        <form onSubmit={handleInvite} className="flex gap-2">
+          <input
+            type="email"
+            value={inviteEmail}
+            onChange={(e) => setInviteEmail(e.target.value)}
+            placeholder="coach@example.com"
+            required
+            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#002d62]"
+          />
+          <button
+            type="submit"
+            disabled={inviting || !inviteEmail.trim()}
+            className={`px-4 py-2 rounded-lg font-bold text-white text-sm transition-colors ${
+              inviting || !inviteEmail.trim()
+                ? "bg-gray-300 cursor-not-allowed"
+                : "bg-[#002d62] hover:bg-[#003d82]"
+            }`}
           >
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-sm text-gray-800">
-                  {user.name || user.email}
-                </span>
-                {user.role === "admin" && (
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-700">
-                    Admin
-                  </span>
-                )}
-                <span
-                  className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                    user.status === "approved"
-                      ? "bg-green-100 text-green-700"
-                      : user.status === "pending"
-                      ? "bg-amber-100 text-amber-700"
-                      : "bg-red-100 text-red-700"
-                  }`}
-                >
-                  {user.status}
-                </span>
-              </div>
-              <div className="text-xs text-gray-400 truncate">
-                {user.email} · {user.authProvider || "no auth"} · joined{" "}
-                {new Date(user.createdAt).toLocaleDateString()}
-              </div>
-            </div>
+            {inviting ? "Sending..." : "Send Invite"}
+          </button>
+        </form>
+        {inviteMessage && (
+          <p className={`text-xs mt-2 ${
+            inviteMessage.includes("sent") ? "text-green-600" : "text-red-500"
+          }`}>
+            {inviteMessage}
+          </p>
+        )}
+        <p className="text-[10px] text-gray-400 mt-1">
+          They will be pre-approved and receive a welcome email with a sign-in link.
+        </p>
+      </div>
 
-            <div className="flex items-center gap-2">
-              {user.status === "pending" && (
-                <button
-                  onClick={() => updateUser(user.id, { status: "approved" })}
-                  className="text-xs px-3 py-1.5 bg-green-600 text-white rounded hover:bg-green-700 transition-colors font-medium"
-                >
-                  Approve
-                </button>
-              )}
-              {user.status === "approved" && user.role !== "admin" && (
-                <button
-                  onClick={() => updateUser(user.id, { status: "suspended" })}
-                  className="text-xs px-3 py-1.5 bg-gray-200 text-gray-600 rounded hover:bg-gray-300 transition-colors"
-                >
-                  Suspend
-                </button>
-              )}
-              {user.status === "suspended" && (
-                <button
-                  onClick={() => updateUser(user.id, { status: "approved" })}
-                  className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                >
-                  Reactivate
-                </button>
-              )}
-              {user.role !== "admin" && (
-                <button
-                  onClick={() => deleteUser(user.id, user.email)}
-                  className="text-xs px-2 py-1.5 text-red-400 hover:text-red-600 transition-colors"
-                >
-                  Delete
-                </button>
-              )}
-            </div>
-          </div>
-        ))}
+      {/* User list */}
+      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-200 bg-gray-50">
+          <h2 className="text-sm font-bold text-gray-700">
+            Coaches ({users.length})
+          </h2>
+        </div>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-gray-200 text-gray-500 text-xs">
+              <th className="px-4 py-2 text-left font-medium">Email</th>
+              <th className="px-4 py-2 text-left font-medium">Name</th>
+              <th className="px-4 py-2 text-center font-medium">Status</th>
+              <th className="px-4 py-2 text-center font-medium">Auth</th>
+              <th className="px-4 py-2 text-center font-medium">Joined</th>
+              <th className="px-4 py-2 text-right font-medium">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((user) => (
+              <tr key={user.id} className="border-b border-gray-100 hover:bg-gray-50">
+                <td className="px-4 py-2.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-gray-800">{user.email}</span>
+                    {user.role === "admin" && (
+                      <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-purple-100 text-purple-700">
+                        admin
+                      </span>
+                    )}
+                  </div>
+                </td>
+                <td className="px-4 py-2.5 text-gray-600">
+                  {user.name || "--"}
+                </td>
+                <td className="px-4 py-2.5 text-center">
+                  <span
+                    className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                      user.status === "approved"
+                        ? "bg-green-100 text-green-700"
+                        : user.status === "pending"
+                        ? "bg-amber-100 text-amber-700"
+                        : "bg-red-100 text-red-700"
+                    }`}
+                  >
+                    {user.status}
+                  </span>
+                </td>
+                <td className="px-4 py-2.5 text-center text-gray-400 text-xs">
+                  {user.authProvider || "invited"}
+                </td>
+                <td className="px-4 py-2.5 text-center text-gray-400 text-xs">
+                  {new Date(user.createdAt).toLocaleDateString()}
+                </td>
+                <td className="px-4 py-2.5 text-right">
+                  <div className="flex items-center justify-end gap-1">
+                    {user.status === "pending" && (
+                      <button
+                        onClick={() => updateUser(user.id, { status: "approved" })}
+                        className="text-[10px] px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700 font-medium"
+                      >
+                        Approve
+                      </button>
+                    )}
+                    {user.status === "approved" && user.role !== "admin" && (
+                      <button
+                        onClick={() => updateUser(user.id, { status: "suspended" })}
+                        className="text-[10px] px-2 py-1 bg-gray-200 text-gray-600 rounded hover:bg-gray-300"
+                      >
+                        Suspend
+                      </button>
+                    )}
+                    {user.status === "suspended" && (
+                      <button
+                        onClick={() => updateUser(user.id, { status: "approved" })}
+                        className="text-[10px] px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                      >
+                        Reactivate
+                      </button>
+                    )}
+                    {user.role !== "admin" && (
+                      <button
+                        onClick={() => deleteUser(user.id, user.email)}
+                        className="text-[10px] px-2 py-1 text-red-400 hover:text-red-600"
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
