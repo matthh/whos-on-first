@@ -30,6 +30,7 @@ export default function Home() {
   const [loaded, setLoaded] = useState(false);
   const [userStatus, setUserStatus] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -60,6 +61,7 @@ export default function Home() {
         if (authRes?.user) {
           setUserStatus(authRes.user.status);
           setIsAdmin(authRes.user.role === "admin");
+          setUserEmail(authRes.user.email);
         }
 
         const players = rosterRes?.players || [];
@@ -313,42 +315,42 @@ export default function Home() {
   const hasPlayers = roster.players.length > 0;
 
   return (
-    <div className="min-h-screen max-w-2xl mx-auto px-4 py-6">
-      {/* Header */}
-      <header className="mb-6 text-center">
-        <div className="flex justify-center mb-2">
-          <img src="/logo.png" alt="Who's On First" className="h-28 object-contain" />
-        </div>
-        <p className="text-sm text-gray-500 mb-2">
-          Game Day Defensive Roster
-        </p>
-        <div className="flex justify-center gap-3 mb-2 text-xs">
+    <div className="min-h-screen max-w-2xl mx-auto px-4 py-2">
+      {/* Top bar: version + logout */}
+      <div className="flex justify-between items-center text-[10px] text-gray-400 mb-1">
+        <span>
+          v1.0 · Built{" "}
+          {process.env.BUILD_TIMESTAMP
+            ? new Date(process.env.BUILD_TIMESTAMP).toLocaleString("en-US", {
+                timeZone: "America/Los_Angeles",
+                month: "short",
+                day: "numeric",
+                hour: "numeric",
+                minute: "2-digit",
+                hour12: true,
+              })
+            : "dev"}
+        </span>
+        <div className="flex items-center gap-2">
           {isAdmin && (
-            <a href="/admin" className="text-[#002d62] hover:underline">Admin</a>
+            <a href="/admin" className="text-[#002d62] hover:underline text-xs">Admin</a>
           )}
           <button
             onClick={async () => {
               await fetch("/api/auth/logout", { method: "POST" });
               window.location.href = "/login";
             }}
-            className="text-gray-400 hover:text-gray-600"
+            className="hover:text-gray-600"
           >
-            Logout
+            {userEmail || "Logout"}
           </button>
         </div>
-        <div className="flex items-center gap-2 justify-center">
-          {config.logoDataUrl && (
-            <img
-              src={config.logoDataUrl}
-              alt="Team logo"
-              className="w-6 h-6 object-contain"
-            />
-          )}
-          <span className="text-lg font-bold text-[#002d62]">
-            {config.teamName}
-          </span>
-        </div>
-      </header>
+      </div>
+
+      {/* Pennant logo — centered */}
+      <div className="flex justify-center mb-2">
+        <img src="/logo.png" alt="Who's On First" className="h-20 object-contain" />
+      </div>
 
       {/* Pending user gate */}
       {userStatus === "pending" && (
@@ -372,47 +374,41 @@ export default function Home() {
       {/* Tabs — only show for approved users (or if auth status not loaded yet) */}
       {(userStatus === "approved" || userStatus === null) && (<>
 
-      {/* Tabs */}
-      <div className="flex gap-1 mb-4 border-b border-gray-200">
-        {(["roster", "preview", "history"] as Tab[]).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 text-sm font-medium capitalize transition-colors ${
-              activeTab === tab
-                ? "text-[#002d62] border-b-2 border-[#002d62]"
-                : "text-gray-400 hover:text-gray-600"
-            } ${tab === "preview" && !gameSheet ? "opacity-40 pointer-events-none" : ""}`}
-          >
-            {tab}
-          </button>
-        ))}
+      {/* Tabs row: team logo+name on left, tabs on right */}
+      <div className="flex items-center justify-between border-b border-gray-200 mb-3">
+        <div className="flex items-center gap-2">
+          {config.logoDataUrl && (
+            <img src={config.logoDataUrl} alt="Team logo" className="w-6 h-6 object-contain" />
+          )}
+          <span className="text-sm font-bold text-[#002d62]">{config.teamName}</span>
+        </div>
+        <div className="flex gap-1">
+          {(["roster", "preview", "history"] as Tab[]).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-3 py-2 text-sm font-medium capitalize transition-colors ${
+                activeTab === tab
+                  ? "text-[#002d62] border-b-2 border-[#002d62]"
+                  : "text-gray-400 hover:text-gray-600"
+              } ${tab === "preview" && !gameSheet ? "opacity-40 pointer-events-none" : ""}`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Error */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 text-sm text-red-700">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-3 text-sm text-red-700">
           {error}
         </div>
       )}
 
       {/* Tab content */}
       {activeTab === "roster" && (
-        <div className="space-y-4">
-          {/* Constraints toggle */}
-          <button
-            onClick={() => setShowConstraints(!showConstraints)}
-            className="text-xs text-gray-400 hover:text-[#002d62] transition-colors"
-          >
-            {showConstraints ? "Hide" : "View"} Scheduling Constraints
-          </button>
-          {showConstraints && (
-            <ConstraintsPanel
-              config={config}
-              onChange={handleConfigChange}
-              onClose={() => setShowConstraints(false)}
-            />
-          )}
+        <div className="space-y-3">
 
           {/* Empty roster: setup flow */}
           {!hasPlayers ? (
@@ -454,6 +450,21 @@ export default function Home() {
               </button>
             </>
           )}
+
+          {/* Constraints — below generate button */}
+          <button
+            onClick={() => setShowConstraints(!showConstraints)}
+            className="text-xs text-gray-400 hover:text-[#002d62] transition-colors"
+          >
+            {showConstraints ? "Hide" : "View"} Scheduling Constraints
+          </button>
+          {showConstraints && (
+            <ConstraintsPanel
+              config={config}
+              onChange={handleConfigChange}
+              onClose={() => setShowConstraints(false)}
+            />
+          )}
         </div>
       )}
 
@@ -474,21 +485,6 @@ export default function Home() {
       {activeTab === "history" && <History entries={historyEntries} />}
 
       </>)}
-
-      {/* Version */}
-      <div className="text-center text-[10px] text-gray-500 mt-8">
-        v1.0 · Built{" "}
-        {process.env.BUILD_TIMESTAMP
-          ? new Date(process.env.BUILD_TIMESTAMP).toLocaleString("en-US", {
-              timeZone: "America/Los_Angeles",
-              month: "short",
-              day: "numeric",
-              hour: "numeric",
-              minute: "2-digit",
-              hour12: true,
-            })
-          : "dev"}
-      </div>
     </div>
   );
 }
