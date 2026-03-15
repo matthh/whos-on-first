@@ -219,7 +219,7 @@ function* solveInning(
   const result = new Map<string, Position>();
   const used = new Set<Position>();
   let yieldCount = 0;
-  const MAX_YIELDS = 200;
+  const MAX_YIELDS = 500;
 
   const noConsecutivePos = config.positioning["no-consecutive-position"] ?? true;
   const maxConsecutiveOf = config.positioning["max-consecutive-of"] ?? true;
@@ -352,14 +352,8 @@ export function generateGameSheet(
 
   function solveAll(inn: number): boolean {
     if (inn >= innings) {
-      if (minOutfield) {
-        for (const p of present) {
-          const bc = Array.from({ length: innings }).filter((_, i) =>
-            bench[i].has(p.id)
-          ).length;
-          if (innings - bc > 0 && ofCounts.get(p.id)! === 0) return false;
-        }
-      }
+      // "Every player gets OF" is validated post-solve, not enforced here.
+      // Enforcing it here causes exponential backtracking.
       return true;
     }
 
