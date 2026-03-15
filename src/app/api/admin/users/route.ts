@@ -57,7 +57,7 @@ export async function PATCH(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { id, name, role, status } = body;
+  const { id, name, email, role, status } = body;
 
   if (!id) {
     return NextResponse.json({ error: "User ID required" }, { status: 400 });
@@ -71,6 +71,7 @@ export async function PATCH(request: NextRequest) {
 
   const updates: Record<string, unknown> = {};
   if (name !== undefined) updates.name = name;
+  if (email !== undefined) updates.email = email.toLowerCase().trim();
   if (role !== undefined) updates.role = role;
   if (status !== undefined) updates.status = status;
 

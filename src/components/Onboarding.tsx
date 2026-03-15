@@ -16,6 +16,7 @@ import RosterList from "./RosterList";
 
 interface OnboardingProps {
   onComplete: (config: {
+    coachName: string;
     teamName: string;
     logoDataUrl: string | null;
     players: Player[];
@@ -33,6 +34,7 @@ export default function Onboarding({
   initialConfig,
 }: OnboardingProps) {
   const [step, setStep] = useState(1);
+  const [coachName, setCoachName] = useState("");
   const [teamName, setTeamName] = useState(
     initialConfig?.teamName || DEFAULT_CONFIG.teamName
   );
@@ -142,7 +144,7 @@ export default function Onboarding({
       fieldPositions,
       maxInningsPitched,
     };
-    onComplete({ teamName, logoDataUrl, players, constraints: config });
+    onComplete({ coachName, teamName, logoDataUrl, players, constraints: config });
   };
 
   const availableForNewRestriction = AVAILABLE_POSITIONS.filter(
@@ -395,6 +397,20 @@ export default function Onboarding({
           </div>
 
           <div className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-600 mb-2">
+                Your Name
+              </label>
+              <input
+                type="text"
+                value={coachName}
+                onChange={(e) => setCoachName(e.target.value)}
+                className="text-lg font-medium text-gray-800 bg-transparent border-b-2 border-gray-300 focus:border-[#002d62] outline-none text-center w-full max-w-xs mx-auto block py-2 transition-colors"
+                placeholder="Coach name"
+                autoFocus
+              />
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-600 mb-2">
                 Team Name

@@ -22,7 +22,7 @@ export async function PUT(request: NextRequest) {
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await request.json();
-  const { players, config } = body;
+  const { players, config, coachName } = body;
 
   // Upsert roster
   if (players !== undefined) {
@@ -34,12 +34,16 @@ export async function PUT(request: NextRequest) {
     }
   }
 
-  // Update constraint_config (and teamName/logoDataUrl from config for backwards compat)
+  // Update user record
+  const userUpdates: Record<string, unknown> = {};
   if (config !== undefined) {
-    const updates: Record<string, unknown> = { constraintConfig: config };
-    if (config.teamName !== undefined) updates.teamName = config.teamName;
-    if (config.logoDataUrl !== undefined) updates.logoDataUrl = config.logoDataUrl;
-    await db.update(users).set(updates).where(eq(users.id, userId));
+    userUpdates.constraintConfig = config;
+    if (config.teamName !== undefined) userUpdates.teamName = config.teamName;
+    if (config.logoDataUrl !== undefined) userUpdates.logoDataUrl = config.logoDataUrl;
+  }
+  if (coachName !== undefined) userUpdates.name = coachName;
+  if (Object.keys(userUpdates).length > 0) {
+    await db.update(users).set(userUpdates).where(eq(users.id, userId));
   }
 
   return NextResponse.json({ ok: true });

@@ -184,6 +184,7 @@ export default function Home() {
 
   const handleOnboardingComplete = useCallback(
     (result: {
+      coachName: string;
       teamName: string;
       logoDataUrl: string | null;
       players: Player[];
@@ -203,7 +204,11 @@ export default function Home() {
       fetch("/api/roster", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ players: newPlayers, config: newConfig }),
+        body: JSON.stringify({
+          players: newPlayers,
+          config: newConfig,
+          coachName: result.coachName,
+        }),
       }).catch(() => {});
 
       setShowOnboarding(false);

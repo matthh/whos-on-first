@@ -181,16 +181,37 @@ export default function AdminPage() {
               <tr key={user.id} className="border-b border-gray-100 hover:bg-gray-50">
                 <td className="px-4 py-2.5">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-gray-800">{user.email}</span>
+                    <input
+                      type="text"
+                      defaultValue={user.email}
+                      onBlur={(e) => {
+                        const val = e.target.value.trim();
+                        if (val && val !== user.email) {
+                          updateUser(user.id, { email: val });
+                        }
+                      }}
+                      className="text-gray-800 bg-transparent border-none outline-none text-sm w-full hover:bg-gray-100 focus:bg-gray-100 rounded px-1 -mx-1"
+                    />
                     {user.role === "admin" && (
-                      <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-purple-100 text-purple-700">
+                      <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-purple-100 text-purple-700 flex-shrink-0">
                         admin
                       </span>
                     )}
                   </div>
                 </td>
-                <td className="px-4 py-2.5 text-gray-600">
-                  {user.name || "--"}
+                <td className="px-4 py-2.5">
+                  <input
+                    type="text"
+                    defaultValue={user.name || ""}
+                    placeholder="--"
+                    onBlur={(e) => {
+                      const val = e.target.value.trim();
+                      if (val !== (user.name || "")) {
+                        updateUser(user.id, { name: val });
+                      }
+                    }}
+                    className="text-gray-600 bg-transparent border-none outline-none text-sm w-full hover:bg-gray-100 focus:bg-gray-100 rounded px-1 -mx-1"
+                  />
                 </td>
                 <td className="px-4 py-2.5 text-center">
                   <span
