@@ -21,6 +21,24 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
+// Color palette for restriction groups — indexed by unique topN values
+const RESTRICTION_COLORS = [
+  { bg: "bg-amber-100", text: "text-amber-700", badge: "bg-amber-500" },   // most restrictive
+  { bg: "bg-blue-100", text: "text-blue-700", badge: "bg-blue-500" },
+  { bg: "bg-rose-100", text: "text-rose-700", badge: "bg-rose-500" },
+  { bg: "bg-emerald-100", text: "text-emerald-700", badge: "bg-emerald-500" },
+  { bg: "bg-purple-100", text: "text-purple-700", badge: "bg-purple-500" },
+  { bg: "bg-cyan-100", text: "text-cyan-700", badge: "bg-cyan-500" },
+];
+
+/** Map each unique topN to a color index. Lower topN (more restrictive) gets first color. */
+function buildColorMap(restrictions: PositionRestriction[]): Map<number, number> {
+  const uniqueTopN = [...new Set(restrictions.filter(r => r.enabled).map(r => r.topN))].sort((a, b) => a - b);
+  const map = new Map<number, number>();
+  uniqueTopN.forEach((topN, i) => map.set(topN, i % RESTRICTION_COLORS.length));
+  return map;
+}
+
 interface RosterListProps {
   players: Player[];
   onReorder: (players: Player[]) => void;
@@ -47,6 +65,7 @@ function SortablePlayer({
   canRemove,
   shouldFocus,
   restrictions,
+  colorMap,
 }: {
   player: Player;
   onToggleAbsent: (id: string) => void;
@@ -56,6 +75,7 @@ function SortablePlayer({
   canRemove: boolean;
   shouldFocus: boolean;
   restrictions: PositionRestriction[];
+  colorMap: Map<number, number>;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: player.id });
@@ -103,10 +123,12 @@ function SortablePlayer({
         </svg>
       </button>
 
-      {/* Rank badge */}
+      {/* Rank badge — colored by most restrictive eligible group */}
       <span
         className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white ${
-          eligibleFor.length > 0 ? "bg-amber-500" : "bg-gray-400"
+          eligibleFor.length > 0
+            ? RESTRICTION_COLORS[colorMap.get(Math.min(...eligibleFor.map(r => r.topN))) ?? 0]?.badge || "bg-amber-500"
+            : "bg-gray-400"
         }`}
       >
         {player.rank}
@@ -130,15 +152,19 @@ function SortablePlayer({
         }`}
       />
 
-      {/* Eligibility badges — dynamic from restrictions */}
-      {eligibleFor.map((r) => (
-        <span
-          key={r.position}
-          className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700"
-        >
-          {r.position}
-        </span>
-      ))}
+      {/* Eligibility badges — colored by restriction group */}
+      {eligibleFor.map((r) => {
+        const colorIdx = colorMap.get(r.topN) ?? 0;
+        const colors = RESTRICTION_COLORS[colorIdx] || RESTRICTION_COLORS[0];
+        return (
+          <span
+            key={r.position}
+            className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${colors.bg} ${colors.text}`}
+          >
+            {r.position}
+          </span>
+        );
+      })}
 
       {/* Absent toggle */}
       <button
@@ -190,6 +216,7 @@ export default function RosterList({
 
   const sorted = [...players].sort((a, b) => a.rank - b.rank);
   const presentCount = sorted.filter((p) => !p.absent).length;
+  const colorMap = buildColorMap(restrictions);
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
@@ -222,11 +249,15 @@ export default function RosterList({
         </div>
         {restrictions.filter(r => r.enabled).length > 0 && (
           <div className="flex gap-2 text-[10px] flex-wrap">
-            {restrictions.filter(r => r.enabled).map((r) => (
-              <span key={r.position} className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-bold whitespace-nowrap">
-                {r.position} eligible (top {r.topN})
-              </span>
-            ))}
+            {restrictions.filter(r => r.enabled).map((r) => {
+              const colorIdx = colorMap.get(r.topN) ?? 0;
+              const colors = RESTRICTION_COLORS[colorIdx] || RESTRICTION_COLORS[0];
+              return (
+                <span key={r.position} className={`px-1.5 py-0.5 rounded ${colors.bg} ${colors.text} font-bold whitespace-nowrap`}>
+                  {r.position} eligible (top {r.topN})
+                </span>
+              );
+            })}
           </div>
         )}
       </div>
@@ -256,6 +287,7 @@ export default function RosterList({
                 canRemove={sorted.length > 10}
                 shouldFocus={player.id === focusPlayerId}
                 restrictions={restrictions}
+                colorMap={colorMap}
               />
             ))}
           </div>
