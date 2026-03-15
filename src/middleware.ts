@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/api/auth/"];
+const PUBLIC_PATHS = ["/login", "/api/auth/google-login", "/api/auth/logout"];
 const STATIC_PATHS = ["/_next/", "/favicon.ico", "/favicon.png", "/logo.png"];
 
 const SESSION_COOKIE = "wof-session";

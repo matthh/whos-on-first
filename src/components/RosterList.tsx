@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { Player } from "@/lib/types";
+import { PositionRestriction } from "@/lib/constraints";
 import {
   DndContext,
   closestCenter,
@@ -33,6 +34,8 @@ interface RosterListProps {
   hideAddButton?: boolean;
   /** Max players allowed */
   maxPlayers?: number;
+  /** Position restrictions to show as eligibility badges */
+  restrictions?: PositionRestriction[];
 }
 
 function SortablePlayer({
@@ -43,6 +46,7 @@ function SortablePlayer({
   onEnter,
   canRemove,
   shouldFocus,
+  restrictions,
 }: {
   player: Player;
   onToggleAbsent: (id: string) => void;
@@ -51,6 +55,7 @@ function SortablePlayer({
   onEnter: () => void;
   canRemove: boolean;
   shouldFocus: boolean;
+  restrictions: PositionRestriction[];
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: player.id });
@@ -68,8 +73,8 @@ function SortablePlayer({
     opacity: isDragging ? 0.5 : 1,
   };
 
-  const isTop4 = player.rank <= 4;
-  const isTop6 = player.rank <= 6;
+  // Determine which restrictions this player qualifies for
+  const eligibleFor = restrictions.filter(r => r.enabled && player.rank <= r.topN);
 
   return (
     <div
@@ -101,11 +106,7 @@ function SortablePlayer({
       {/* Rank badge */}
       <span
         className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white ${
-          isTop4
-            ? "bg-amber-500"
-            : isTop6
-            ? "bg-blue-500"
-            : "bg-gray-400"
+          eligibleFor.length > 0 ? "bg-amber-500" : "bg-gray-400"
         }`}
       >
         {player.rank}
@@ -129,17 +130,15 @@ function SortablePlayer({
         }`}
       />
 
-      {/* Eligibility badges */}
-      {isTop4 && (
-        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
-          1B
+      {/* Eligibility badges — dynamic from restrictions */}
+      {eligibleFor.map((r) => (
+        <span
+          key={r.position}
+          className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700"
+        >
+          {r.position}
         </span>
-      )}
-      {isTop6 && (
-        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">
-          P
-        </span>
-      )}
+      ))}
 
       {/* Absent toggle */}
       <button
@@ -180,6 +179,7 @@ export default function RosterList({
   focusPlayerId,
   hideAddButton,
   maxPlayers = 13,
+  restrictions = [],
 }: RosterListProps) {
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -220,14 +220,15 @@ export default function RosterList({
             </span>
           )}
         </div>
-        <div className="flex gap-2 text-[10px]">
-          <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-bold">
-            1B eligible (top 4)
-          </span>
-          <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-bold">
-            P eligible (top 6)
-          </span>
-        </div>
+        {restrictions.filter(r => r.enabled).length > 0 && (
+          <div className="flex gap-2 text-[10px] flex-wrap">
+            {restrictions.filter(r => r.enabled).map((r) => (
+              <span key={r.position} className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-bold whitespace-nowrap">
+                {r.position} eligible (top {r.topN})
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       <DndContext
@@ -254,6 +255,7 @@ export default function RosterList({
                 }}
                 canRemove={sorted.length > 10}
                 shouldFocus={player.id === focusPlayerId}
+                restrictions={restrictions}
               />
             ))}
           </div>

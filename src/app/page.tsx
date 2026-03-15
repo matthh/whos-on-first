@@ -438,6 +438,7 @@ export default function Home() {
                 onAddPlayer={handleAddPlayer}
                 onRemovePlayer={handleRemovePlayer}
                 focusPlayerId={focusPlayerId}
+                restrictions={config.restrictions}
               />
 
               <button
