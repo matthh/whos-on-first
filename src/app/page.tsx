@@ -191,7 +191,8 @@ export default function Home() {
       config.logoDataUrl,
       config.innings
     );
-    doc.save(`game-sheet-${new Date().toISOString().slice(0, 10)}.pdf`);
+    const ts = new Date().toISOString().replace(/[:.]/g, "").slice(0, 15);
+    doc.save(`game-sheet-${ts}.pdf`);
   }, [roster, gameSheet, config]);
 
   if (!loaded) {
