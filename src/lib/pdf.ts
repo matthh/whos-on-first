@@ -44,8 +44,8 @@ export async function generatePDF(
   const pennant = await loadPennant();
   if (pennant) {
     try {
-      const logoW = 70;
-      const logoH = logoW / 1.95; // ~36mm, proper aspect ratio
+      const logoH = 18;
+      const logoW = logoH * (2521 / 1292); // maintain exact pixel aspect ratio
       doc.addImage(pennant, "PNG", (pageWidth - logoW) / 2, startY, logoW, logoH);
       startY += logoH + 3;
     } catch {
