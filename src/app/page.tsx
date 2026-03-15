@@ -29,10 +29,23 @@ export default function Home() {
   const [showConstraints, setShowConstraints] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [userStatus, setUserStatus] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
-  // Load from localStorage on mount
+  // Load user status + localStorage data on mount
   useEffect(() => {
+    // Check auth status
+    fetch("/api/auth/status")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data?.user) {
+          setUserStatus(data.user.status);
+          setIsAdmin(data.user.role === "admin");
+        }
+      })
+      .catch(() => {});
+
     const savedConfig = loadConfig();
     setConfig(savedConfig);
     setRoster(loadRoster());
@@ -237,7 +250,9 @@ export default function Home() {
           Game Day Defensive Roster
         </p>
         <div className="flex justify-center gap-3 mb-2 text-xs">
-          <a href="/admin" className="text-[#002d62] hover:underline">Admin</a>
+          {isAdmin && (
+            <a href="/admin" className="text-[#002d62] hover:underline">Admin</a>
+          )}
           <button
             onClick={async () => {
               await fetch("/api/auth/logout", { method: "POST" });
@@ -261,6 +276,28 @@ export default function Home() {
           </span>
         </div>
       </header>
+
+      {/* Pending user gate */}
+      {userStatus === "pending" && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-6 text-center">
+          <h2 className="text-lg font-bold text-amber-800 mb-2">Account Pending Approval</h2>
+          <p className="text-sm text-amber-700">
+            Your account is waiting for admin approval. You&apos;ll receive an email once approved.
+          </p>
+        </div>
+      )}
+
+      {userStatus === "suspended" && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+          <h2 className="text-lg font-bold text-red-800 mb-2">Account Suspended</h2>
+          <p className="text-sm text-red-700">
+            Your account has been suspended. Contact the administrator for assistance.
+          </p>
+        </div>
+      )}
+
+      {/* Tabs — only show for approved users (or if auth status not loaded yet) */}
+      {(userStatus === "approved" || userStatus === null) && (<>
 
       {/* Tabs */}
       <div className="flex gap-1 mb-4 border-b border-gray-200">
@@ -360,6 +397,8 @@ export default function Home() {
       )}
 
       {activeTab === "history" && <History entries={roster.history} />}
+
+      </>)}
 
       {/* Version */}
       <div className="text-center text-[10px] text-gray-500 mt-8">
