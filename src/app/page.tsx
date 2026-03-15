@@ -64,7 +64,10 @@ export default function Home() {
           setUserEmail(authRes.user.email);
         }
 
-        const players = rosterRes?.players || [];
+        // Clear absences on fresh session
+        const players = (rosterRes?.players || []).map(
+          (p: Player) => ({ ...p, absent: false })
+        );
         const savedConfig = rosterRes?.config || null;
 
         // Merge saved config with defaults so new fields are picked up
@@ -267,6 +270,12 @@ export default function Home() {
   const handleStartOver = useCallback(() => {
     setGameSheet(null);
     setViolations([]);
+    setError(null);
+    // Clear all absences
+    setRoster((prev) => {
+      if (!prev) return prev;
+      return { ...prev, players: prev.players.map((p) => ({ ...p, absent: false })) };
+    });
     setActiveTab("roster");
   }, []);
 
