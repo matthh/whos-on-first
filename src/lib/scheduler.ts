@@ -212,12 +212,34 @@ function* solveInning(
   pitchCounts: Map<string, number>,
 ): Generator<Map<string, Position>> {
   const n = active.length;
-  const ordered = [...active].sort((a, b) => a.rank - b.rank);
   const ofCount_target = posOrders.ofPositions.length;
-  const fieldSize = config.fieldPositions.length;
+
+  // Pre-compute which players can play OF this inning
+  const canPlayOF = new Set<string>();
+  for (const p of active) {
+    if (!blocked.get(p.id)!.has(inn)) canPlayOF.add(p.id);
+  }
+
+  // Sort: players who MUST play OF (only OF-eligible) first,
+  // then by rank (best first) for IF priority
+  const ordered = [...active].sort((a, b) => {
+    const aCanIF = !blocked.get(a.id)!.has(inn) ? true : true; // everyone can play IF
+    const aCanOF = canPlayOF.has(a.id);
+    const bCanOF = canPlayOF.has(b.id);
+
+    // If exactly ofCount_target players can play OF, those players must play OF.
+    // Put OF-only-option players last so they naturally fill OF slots.
+    // Actually: put players who CAN'T play OF first (they must play IF),
+    // then top-ranked OF-eligible players (they get IF priority),
+    // then lower-ranked OF-eligible players (they fill OF).
+    if (!aCanOF && bCanOF) return -1; // a must play IF, assign first
+    if (aCanOF && !bCanOF) return 1;  // b must play IF, assign first
+    return a.rank - b.rank; // same OF eligibility: best rank first
+  });
 
   const result = new Map<string, Position>();
   const used = new Set<Position>();
+  const assignedToOF = new Set<string>(); // track who we put in OF
   let yieldCount = 0;
   const MAX_YIELDS = 50;
 
@@ -242,6 +264,12 @@ function* solveInning(
 
     if (ofNeeded > remaining || ofNeeded < 0) return;
 
+    // Count how many remaining unassigned players can play OF
+    let ofEligibleRemaining = 0;
+    for (let j = idx; j < n; j++) {
+      if (canPlayOF.has(ordered[j].id)) ofEligibleRemaining++;
+    }
+
     // Position ordering based on config
     let posOrder: Position[];
     if (config.topPlayerPriority) {
@@ -258,6 +286,10 @@ function* solveInning(
 
       if (ofNeeded === remaining && !posIsOF) continue;
       if (ofNeeded === 0 && posIsOF) continue;
+
+      // Critical: if assigning this OF-eligible player to IF would leave
+      // fewer OF-eligible players than OF slots still needed, force OF
+      if (!posIsOF && canPlayOF.has(player.id) && ofEligibleRemaining <= ofNeeded) continue;
 
       // Position restrictions
       if (!canPlay(player.rank, pos, config.restrictions)) continue;
