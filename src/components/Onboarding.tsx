@@ -69,10 +69,17 @@ export default function Onboarding({
 
   const logoInputRef = useRef<HTMLInputElement>(null);
 
+  const MAX_LOGO_SIZE = 2 * 1024 * 1024; // 2MB
+
   const handleLogoUpload = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
+      if (file.size > MAX_LOGO_SIZE) {
+        alert("Logo file must be 2MB or smaller.");
+        e.target.value = "";
+        return;
+      }
       const reader = new FileReader();
       reader.onload = () => setLogoDataUrl(reader.result as string);
       reader.readAsDataURL(file);

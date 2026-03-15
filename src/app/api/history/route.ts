@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUserId } from "@/lib/auth";
+import { getUserId, getUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { gameHistory } from "@/lib/schema";
 import { eq, desc, and } from "drizzle-orm";
@@ -7,6 +7,11 @@ import { eq, desc, and } from "drizzle-orm";
 export async function GET(request: NextRequest) {
   const userId = getUserId(request);
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const user = await getUser(request);
+  if (!user || (user.status !== "approved" && user.role !== "admin")) {
+    return NextResponse.json({ error: "Account not approved" }, { status: 403 });
+  }
 
   const entries = await db
     .select()
@@ -21,6 +26,11 @@ export async function POST(request: NextRequest) {
   const userId = getUserId(request);
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const user = await getUser(request);
+  if (!user || (user.status !== "approved" && user.role !== "admin")) {
+    return NextResponse.json({ error: "Account not approved" }, { status: 403 });
+  }
+
   const body = await request.json();
   const { date, players } = body;
 
@@ -31,6 +41,11 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const userId = getUserId(request);
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const user = await getUser(request);
+  if (!user || (user.status !== "approved" && user.role !== "admin")) {
+    return NextResponse.json({ error: "Account not approved" }, { status: 403 });
+  }
 
   const { searchParams } = new URL(request.url);
   const id = parseInt(searchParams.get("id") || "", 10);

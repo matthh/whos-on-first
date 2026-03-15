@@ -55,8 +55,10 @@ export async function middleware(request: NextRequest) {
 
   const secret = process.env.SESSION_SECRET;
   if (!secret) {
-    // No secret = auth not configured, pass through (localStorage mode)
-    return NextResponse.next();
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 });
+    }
+    return NextResponse.redirect(new URL("/login", request.url));
   }
 
   const token = request.cookies.get(SESSION_COOKIE)?.value;
