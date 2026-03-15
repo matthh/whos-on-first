@@ -140,15 +140,18 @@ export default function ConstraintsPanel({
                 groups.get(r.topN)!.push(r.position);
               }
 
+              const ROW_H = 22; // px per player row
+              const sortedGroups = [...groups.entries()].sort((a, b) => a[0] - b[0]);
+
               return (
                 <div className="mb-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
                   <p className="text-[11px] text-gray-500 mb-2 font-medium">
                     How it works: restrict positions to your top-ranked players
                   </p>
-                  <div className="flex gap-4 items-start">
-                    <div className="space-y-0.5">
+                  <div className="flex items-start">
+                    {/* Player list */}
+                    <div className="space-y-0.5 flex-shrink-0">
                       {Array.from({ length: playerCount }, (_, i) => {
-                        // Find the most restrictive group this player belongs to
                         let colorIdx = -1;
                         for (const [topN, idx] of colorMap) {
                           if (i < topN) { colorIdx = idx; break; }
@@ -167,16 +170,22 @@ export default function ConstraintsPanel({
                         );
                       })}
                     </div>
-                    <div className="space-y-1 pt-0.5">
-                      {[...groups.entries()].map(([topN, positions]) => {
+                    {/* Bracket bars — each starts from top, extends to its topN */}
+                    <div className="relative flex-1" style={{ minHeight: `${playerCount * ROW_H}px` }}>
+                      {sortedGroups.map(([topN, positions], groupIdx) => {
                         const cidx = colorMap.get(topN) ?? 0;
                         const c = COLORS[cidx];
-                        const heightPx = topN * 22; // ~22px per player row
+                        const barHeight = topN * ROW_H;
+                        const leftOffset = groupIdx * 24 + 8; // space bars apart
                         return (
-                          <div key={topN} className="flex items-center gap-1.5">
-                            <div className={`w-1 rounded-full ${c.bar}`} style={{ height: `${heightPx}px` }} />
-                            <span className={`text-[10px] font-bold ${c.label}`}>
-                              {positions.join(", ")} eligible (top {topN})
+                          <div
+                            key={topN}
+                            className="absolute top-0 flex items-end gap-1.5"
+                            style={{ left: `${leftOffset}px`, height: `${barHeight}px` }}
+                          >
+                            <div className={`w-1 h-full rounded-full ${c.bar}`} />
+                            <span className={`text-[10px] font-bold whitespace-nowrap ${c.label}`}>
+                              {positions.join(", ")} (top {topN})
                             </span>
                           </div>
                         );
