@@ -236,6 +236,18 @@ export default function Home() {
         <p className="text-sm text-gray-500 mb-2">
           Game Day Defensive Roster
         </p>
+        <div className="flex justify-center gap-3 mb-2 text-xs">
+          <a href="/admin" className="text-[#002d62] hover:underline">Admin</a>
+          <button
+            onClick={async () => {
+              await fetch("/api/auth/logout", { method: "POST" });
+              window.location.href = "/login";
+            }}
+            className="text-gray-400 hover:text-gray-600"
+          >
+            Logout
+          </button>
+        </div>
         <div className="flex items-center gap-2 justify-center">
           {config.logoDataUrl && (
             <img

@@ -421,7 +421,8 @@ function shuffle<T>(arr: T[]): T[] {
 export function generateGameSheet(
   allPlayers: Player[],
   config: ConstraintConfig = DEFAULT_CONFIG,
-  randomize: boolean = false
+  randomize: boolean = false,
+  _attempt: number = 0
 ): GameSheet {
   const present = allPlayers.filter(p => !p.absent).sort((a, b) => a.rank - b.rank);
   const n = present.length;
@@ -459,10 +460,15 @@ export function generateGameSheet(
   for (let i = 0; i < innings; i++)
     for (const pid of bench[i]) sheet[i][pid] = "Bench";
 
-  // Solve each inning sequentially (no cross-inning backtracking — too expensive)
-  for (let inn = 0; inn < innings; inn++) {
+  // Solve all innings with cross-inning backtracking.
+  // If inning N fails, we backtrack to inning N-1 and try its next valid assignment.
+  // The per-inning solver yields multiple solutions via generator.
+  function solveAll(inn: number): boolean {
+    if (inn >= innings) return true;
+
     const active = present.filter(p => !bench[inn].has(p.id));
-    // When randomizing, create shuffled position orders per inning
+
+    // When randomizing, shuffle position orders per inning
     const innPosOrders = randomize ? {
       ...posOrders,
       premiumIF: shuffle([...posOrders.premiumIF]),
@@ -475,25 +481,40 @@ export function generateGameSheet(
       config, topThreshold, innPosOrders, pitchCounts
     );
 
-    const result = gen.next();
-    if (result.done || !result.value) {
-      const debug = debugInning(active, inn, sheet, posCounts, blocked, config, posOrders, pitchCounts);
-      console.error(debug);
-      throw new Error(
-        `Cannot satisfy constraints for inning ${inn + 1}. ` +
-        `Check browser console for debug details. ` +
-        `Try adjusting player ranks or removing a constraint.`
-      );
+    for (const assignment of gen) {
+      // Apply assignment
+      for (const [pid, pos] of assignment) {
+        sheet[inn][pid] = pos;
+        const counts = posCounts.get(pid)!;
+        counts.set(pos, (counts.get(pos) || 0) + 1);
+        if (isOF(pos)) ofCounts.set(pid, ofCounts.get(pid)! + 1);
+        if (pos === "P") pitchCounts.set(pid, pitchCounts.get(pid)! + 1);
+      }
+
+      // Try to solve remaining innings
+      if (solveAll(inn + 1)) return true;
+
+      // Undo assignment and try next solution for this inning
+      for (const [pid, pos] of assignment) {
+        sheet[inn][pid] = "Bench";
+        const counts = posCounts.get(pid)!;
+        counts.set(pos, counts.get(pos)! - 1);
+        if (isOF(pos)) ofCounts.set(pid, ofCounts.get(pid)! - 1);
+        if (pos === "P") pitchCounts.set(pid, pitchCounts.get(pid)! - 1);
+      }
     }
 
-    const assignment = result.value;
-    for (const [pid, pos] of assignment) {
-      sheet[inn][pid] = pos;
-      const counts = posCounts.get(pid)!;
-      counts.set(pos, (counts.get(pos) || 0) + 1);
-      if (isOF(pos)) ofCounts.set(pid, ofCounts.get(pid)! + 1);
-      if (pos === "P") pitchCounts.set(pid, pitchCounts.get(pid)! + 1);
+    return false; // all solutions for this inning exhausted, backtrack further
+  }
+
+  if (!solveAll(0)) {
+    // If randomizing, retry with a different shuffle
+    if (randomize && _attempt < 10) {
+      return generateGameSheet(allPlayers, config, true, _attempt + 1);
     }
+    throw new Error(
+      "Cannot satisfy all constraints. Try adjusting player ranks or removing a constraint."
+    );
   }
 
   // Re-mark bench
