@@ -197,6 +197,62 @@ function computeOFBlocked(
   return map;
 }
 
+// ── Debug logging ───────────────────────────────────────────────────
+
+function debugInning(
+  active: Player[],
+  inn: number,
+  sheet: GameSheet,
+  posCounts: Map<string, Map<string, number>>,
+  blocked: Map<string, Set<number>>,
+  config: ConstraintConfig,
+  posOrders: ReturnType<typeof buildPositionOrders>,
+  pitchCounts: Map<string, number>,
+): string {
+  const lines: string[] = [];
+  lines.push(`\n=== INNING ${inn + 1} DEBUG ===`);
+  lines.push(`Active players: ${active.map(p => `${p.name}(r${p.rank})`).join(', ')}`);
+
+  const noConsecutivePos = config.positioning["no-consecutive-position"] ?? true;
+  const max2PerPos = config.positioning["max-2-per-position"] ?? true;
+
+  for (const p of active) {
+    const ofBlocked = blocked.get(p.id)!.has(inn);
+    const prevPos = inn > 0 ? sheet[inn - 1][p.id] : null;
+    const validPositions: string[] = [];
+
+    for (const pos of config.fieldPositions) {
+      const reasons: string[] = [];
+      if (!canPlay(p.rank, pos as Position, config.restrictions)) reasons.push(`rank ${p.rank} > restriction`);
+      if (isOF(pos) && ofBlocked) reasons.push('OF-blocked(bench adj)');
+      if (noConsecutivePos && prevPos && prevPos !== "Bench" && prevPos === pos) reasons.push(`consecutive(was ${prevPos})`);
+      if (max2PerPos) {
+        const cnt = posCounts.get(p.id)!.get(pos) || 0;
+        if (cnt >= 2) reasons.push(`max2(played ${cnt}x)`);
+      }
+      if (pos === "P" && config.maxInningsPitched != null) {
+        const pitched = pitchCounts.get(p.id) || 0;
+        if (pitched >= config.maxInningsPitched) reasons.push(`maxPitch(${pitched}/${config.maxInningsPitched})`);
+      }
+      if (reasons.length === 0) {
+        validPositions.push(pos);
+      }
+    }
+
+    lines.push(`  ${p.name}(r${p.rank}): ${validPositions.length} valid [${validPositions.join(',')}]${ofBlocked ? ' OF-BLOCKED' : ''} prev=${prevPos || 'none'}`);
+  }
+
+  const ofEligible = active.filter(p => !blocked.get(p.id)!.has(inn));
+  const ofNeeded = posOrders.ofPositions.length;
+  lines.push(`OF slots needed: ${ofNeeded}, OF-eligible players: ${ofEligible.length} [${ofEligible.map(p => p.name).join(',')}]`);
+
+  if (ofEligible.length < ofNeeded) {
+    lines.push(`*** IMPOSSIBLE: Not enough OF-eligible players! ***`);
+  }
+
+  return lines.join('\n');
+}
+
 // ── Core solver ─────────────────────────────────────────────────────
 
 function* solveInning(
@@ -392,8 +448,11 @@ export function generateGameSheet(
 
     const result = gen.next();
     if (result.done || !result.value) {
+      const debug = debugInning(active, inn, sheet, posCounts, blocked, config, posOrders, pitchCounts);
+      console.error(debug);
       throw new Error(
         `Cannot satisfy constraints for inning ${inn + 1}. ` +
+        `Check browser console for debug details. ` +
         `Try adjusting player ranks or removing a constraint.`
       );
     }
