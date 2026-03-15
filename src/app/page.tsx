@@ -489,8 +489,8 @@ export default function Home() {
             const entry = historyEntries[index];
             setHistoryEntries((prev) => prev.filter((_, i) => i !== index));
             // Delete from DB if it has an ID
-            if (entry && (entry as Record<string, unknown>).id) {
-              fetch(`/api/history?id=${(entry as Record<string, unknown>).id}`, {
+            if (entry && ((entry as unknown) as Record<string, unknown>).id) {
+              fetch(`/api/history?id=${((entry as unknown) as Record<string, unknown>).id}`, {
                 method: "DELETE",
               }).catch(() => {});
             }
