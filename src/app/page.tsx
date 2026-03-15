@@ -135,7 +135,7 @@ export default function Home() {
   const [generating, setGenerating] = useState(false);
 
   const runGenerate = useCallback(
-    (saveHistory: boolean) => {
+    (saveHistory: boolean, randomize: boolean = false) => {
       if (!roster || !config) return;
       setError(null);
       setGenerating(true);
@@ -143,7 +143,7 @@ export default function Home() {
       // Use setTimeout to let the UI update before the solver runs
       setTimeout(() => {
         try {
-          const sheet = generateGameSheet(roster.players, config);
+          const sheet = generateGameSheet(roster.players, config, randomize);
           const present = roster.players.filter((p) => !p.absent);
           const v = validateGameSheet(sheet, present, config);
           setGameSheet(sheet);
@@ -173,8 +173,8 @@ export default function Home() {
     [roster, config]
   );
 
-  const handleGenerate = useCallback(() => runGenerate(true), [runGenerate]);
-  const handleRerun = useCallback(() => runGenerate(false), [runGenerate]);
+  const handleGenerate = useCallback(() => runGenerate(true, false), [runGenerate]);
+  const handleRerun = useCallback(() => runGenerate(false, true), [runGenerate]);
 
   const handleStartOver = useCallback(() => {
     setGameSheet(null);

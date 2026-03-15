@@ -409,9 +409,19 @@ function* solveInning(
 
 // ── Main entry point ────────────────────────────────────────────────
 
+/** Fisher-Yates shuffle (in-place) */
+function shuffle<T>(arr: T[]): T[] {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 export function generateGameSheet(
   allPlayers: Player[],
-  config: ConstraintConfig = DEFAULT_CONFIG
+  config: ConstraintConfig = DEFAULT_CONFIG,
+  randomize: boolean = false
 ): GameSheet {
   const present = allPlayers.filter(p => !p.absent).sort((a, b) => a.rank - b.rank);
   const n = present.length;
@@ -452,9 +462,17 @@ export function generateGameSheet(
   // Solve each inning sequentially (no cross-inning backtracking — too expensive)
   for (let inn = 0; inn < innings; inn++) {
     const active = present.filter(p => !bench[inn].has(p.id));
+    // When randomizing, create shuffled position orders per inning
+    const innPosOrders = randomize ? {
+      ...posOrders,
+      premiumIF: shuffle([...posOrders.premiumIF]),
+      ofFirst: shuffle([...posOrders.ofFirst]),
+      allPos: shuffle([...posOrders.allPos]),
+    } : posOrders;
+
     const gen = solveInning(
       active, inn, sheet, posCounts, blocked, ofCounts,
-      config, topThreshold, posOrders, pitchCounts
+      config, topThreshold, innPosOrders, pitchCounts
     );
 
     const result = gen.next();
