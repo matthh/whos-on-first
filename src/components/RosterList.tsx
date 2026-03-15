@@ -66,6 +66,7 @@ function SortablePlayer({
   shouldFocus,
   restrictions,
   colorMap,
+  effectiveRank,
 }: {
   player: Player;
   onToggleAbsent: (id: string) => void;
@@ -76,6 +77,7 @@ function SortablePlayer({
   shouldFocus: boolean;
   restrictions: PositionRestriction[];
   colorMap: Map<number, number>;
+  effectiveRank: number;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: player.id });
@@ -93,8 +95,8 @@ function SortablePlayer({
     opacity: isDragging ? 0.5 : 1,
   };
 
-  // Determine which restrictions this player qualifies for
-  const eligibleFor = restrictions.filter(r => r.enabled && player.rank <= r.topN);
+  // Use effective rank for eligibility (absent players don't count)
+  const eligibleFor = player.absent ? [] : restrictions.filter(r => r.enabled && effectiveRank <= r.topN);
 
   return (
     <div
@@ -126,7 +128,9 @@ function SortablePlayer({
       {/* Rank badge — colored by most restrictive eligible group */}
       <span
         className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white ${
-          eligibleFor.length > 0
+          player.absent
+            ? "bg-gray-300"
+            : eligibleFor.length > 0
             ? RESTRICTION_COLORS[colorMap.get(Math.min(...eligibleFor.map(r => r.topN))) ?? 0]?.badge || "bg-amber-500"
             : "bg-gray-400"
         }`}
@@ -171,7 +175,7 @@ function SortablePlayer({
         onClick={() => onToggleAbsent(player.id)}
         className={`text-xs px-2 py-1 rounded transition-colors ${
           player.absent
-            ? "bg-red-100 text-red-700 hover:bg-red-200"
+            ? "bg-orange-100 text-orange-700 hover:bg-orange-200"
             : "bg-gray-100 text-gray-500 hover:bg-gray-200"
         }`}
       >
@@ -217,6 +221,18 @@ export default function RosterList({
   const sorted = [...players].sort((a, b) => a.rank - b.rank);
   const presentCount = sorted.filter((p) => !p.absent).length;
   const colorMap = buildColorMap(restrictions);
+
+  // Compute effective rank: skip absent players when counting eligibility
+  const effectiveRanks = new Map<string, number>();
+  let effectiveCounter = 0;
+  for (const p of sorted) {
+    if (!p.absent) {
+      effectiveCounter++;
+      effectiveRanks.set(p.id, effectiveCounter);
+    } else {
+      effectiveRanks.set(p.id, Infinity); // absent = not eligible for anything
+    }
+  }
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
@@ -288,6 +304,7 @@ export default function RosterList({
                 shouldFocus={player.id === focusPlayerId}
                 restrictions={restrictions}
                 colorMap={colorMap}
+                effectiveRank={effectiveRanks.get(player.id) ?? player.rank}
               />
             ))}
           </div>
