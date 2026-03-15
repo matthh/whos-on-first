@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { Player } from "@/lib/types";
 import {
   DndContext,
@@ -26,6 +27,12 @@ interface RosterListProps {
   onRename: (id: string, name: string) => void;
   onAddPlayer: () => void;
   onRemovePlayer: (id: string) => void;
+  /** ID of player whose name input should be focused */
+  focusPlayerId?: string | null;
+  /** Hide the Add Player button (e.g. when parent shows its own) */
+  hideAddButton?: boolean;
+  /** Max players allowed */
+  maxPlayers?: number;
 }
 
 function SortablePlayer({
@@ -33,16 +40,27 @@ function SortablePlayer({
   onToggleAbsent,
   onRename,
   onRemovePlayer,
+  onEnter,
   canRemove,
+  shouldFocus,
 }: {
   player: Player;
   onToggleAbsent: (id: string) => void;
   onRename: (id: string, name: string) => void;
   onRemovePlayer: (id: string) => void;
+  onEnter: () => void;
   canRemove: boolean;
+  shouldFocus: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: player.id });
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (shouldFocus && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [shouldFocus]);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -95,9 +113,17 @@ function SortablePlayer({
 
       {/* Name input */}
       <input
+        ref={inputRef}
         type="text"
         value={player.name}
         onChange={(e) => onRename(player.id, e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            onEnter();
+          }
+        }}
+        placeholder="Player name"
         className={`flex-1 bg-transparent border-none outline-none text-sm font-medium ${
           player.absent ? "line-through text-gray-400" : "text-gray-800"
         }`}
@@ -151,6 +177,9 @@ export default function RosterList({
   onRename,
   onAddPlayer,
   onRemovePlayer,
+  focusPlayerId,
+  hideAddButton,
+  maxPlayers = 13,
 }: RosterListProps) {
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -218,14 +247,20 @@ export default function RosterList({
                 onToggleAbsent={onToggleAbsent}
                 onRename={onRename}
                 onRemovePlayer={onRemovePlayer}
+                onEnter={() => {
+                  if (sorted.length < maxPlayers) {
+                    onAddPlayer();
+                  }
+                }}
                 canRemove={sorted.length > 10}
+                shouldFocus={player.id === focusPlayerId}
               />
             ))}
           </div>
         </SortableContext>
       </DndContext>
 
-      {sorted.length < 13 && (
+      {!hideAddButton && sorted.length < maxPlayers && (
         <button
           onClick={onAddPlayer}
           className="w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 hover:border-blue-400 hover:text-blue-500 transition-colors"

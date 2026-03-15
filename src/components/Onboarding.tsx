@@ -94,14 +94,30 @@ export default function Onboarding({
     );
   }, []);
 
+  const [focusPlayerId, setFocusPlayerId] = useState<string | null>(null);
+
   const handleAddPlayer = useCallback(() => {
     setPlayers((prev) => {
       const maxRank = prev.length > 0 ? Math.max(...prev.map((p) => p.rank)) : 0;
       const maxId = prev.length > 0 ? Math.max(...prev.map((p) => parseInt(p.id))) : 0;
+      const newId = String(maxId + 1);
+      // Set focus to the new player after render
+      setTimeout(() => setFocusPlayerId(newId), 0);
       return [
         ...prev,
-        { id: String(maxId + 1), name: "", rank: maxRank + 1, absent: false },
+        { id: newId, name: "", rank: maxRank + 1, absent: false },
       ];
+    });
+  }, []);
+
+  /** Remove empty-named players from the end of the list */
+  const cleanupEmptyPlayers = useCallback(() => {
+    setPlayers((prev) => {
+      const cleaned = prev.filter((p) => p.name.trim() !== "");
+      if (cleaned.length === prev.length) return prev;
+      // Reassign ranks
+      const sorted = [...cleaned].sort((a, b) => a.rank - b.rank);
+      return sorted.map((p, i) => ({ ...p, rank: i + 1 }));
     });
   }, []);
 
@@ -492,28 +508,21 @@ export default function Onboarding({
               onRename={handleRename}
               onAddPlayer={handleAddPlayer}
               onRemovePlayer={handleRemovePlayer}
+              focusPlayerId={focusPlayerId}
+              maxPlayers={fieldSize + 3}
             />
-          )}
-
-          {players.length > 0 && players.length < fieldSize + 3 && (
-            <button
-              onClick={handleAddPlayer}
-              className="w-full py-2 border-2 border-dashed border-amber-400 rounded-lg text-sm text-amber-600 hover:border-amber-500 hover:text-amber-700 font-medium transition-colors"
-            >
-              + Add Player
-            </button>
           )}
 
           <div className="flex gap-3 pt-4">
             <button
-              onClick={() => setStep(2)}
+              onClick={() => { cleanupEmptyPlayers(); setStep(2); }}
               className="px-6 py-3 rounded-lg font-bold text-sm text-gray-500 border border-gray-300 hover:bg-gray-50 transition-colors"
             >
               Back
             </button>
             <button
-              onClick={() => setStep(4)}
-              disabled={players.length < fieldSize}
+              onClick={() => { cleanupEmptyPlayers(); setStep(4); }}
+              disabled={players.filter(p => p.name.trim()).length < fieldSize}
               className={`flex-1 py-3 rounded-lg font-bold text-white text-sm transition-colors ${
                 players.length >= fieldSize
                   ? "bg-[#002d62] hover:bg-[#003d82]"

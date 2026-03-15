@@ -147,13 +147,17 @@ export default function Home() {
     [updatePlayers]
   );
 
+  const [focusPlayerId, setFocusPlayerId] = useState<string | null>(null);
+
   const handleAddPlayer = useCallback(() => {
     updatePlayers((players) => {
       const maxRank = players.length > 0 ? Math.max(...players.map((p) => p.rank)) : 0;
       const maxId = players.length > 0 ? Math.max(...players.map((p) => parseInt(p.id))) : 0;
+      const newId = String(maxId + 1);
+      setTimeout(() => setFocusPlayerId(newId), 0);
       return [
         ...players,
-        { id: String(maxId + 1), name: "", rank: maxRank + 1, absent: false },
+        { id: newId, name: "", rank: maxRank + 1, absent: false },
       ];
     });
   }, [updatePlayers]);
@@ -433,6 +437,7 @@ export default function Home() {
                 onRename={handleRename}
                 onAddPlayer={handleAddPlayer}
                 onRemovePlayer={handleRemovePlayer}
+                focusPlayerId={focusPlayerId}
               />
 
               <button
