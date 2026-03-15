@@ -219,7 +219,7 @@ function* solveInning(
   const result = new Map<string, Position>();
   const used = new Set<Position>();
   let yieldCount = 0;
-  const MAX_YIELDS = 500;
+  const MAX_YIELDS = 50;
 
   const noConsecutivePos = config.positioning["no-consecutive-position"] ?? true;
   const maxConsecutiveOf = config.positioning["max-consecutive-of"] ?? true;

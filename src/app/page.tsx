@@ -132,33 +132,42 @@ export default function Home() {
     []
   );
 
+  const [generating, setGenerating] = useState(false);
+
   const runGenerate = useCallback(
     (saveHistory: boolean) => {
       if (!roster || !config) return;
       setError(null);
-      try {
-        const sheet = generateGameSheet(roster.players, config);
-        const present = roster.players.filter((p) => !p.absent);
-        const v = validateGameSheet(sheet, present, config);
-        setGameSheet(sheet);
-        setViolations(v);
+      setGenerating(true);
 
-        if (saveHistory) {
-          const today = new Date().toLocaleDateString("en-US", {
-            weekday: "short",
-            month: "short",
-            day: "numeric",
-            year: "numeric",
-          });
-          const updated = addHistoryEntry(roster, today);
-          const cleared = clearAbsences(updated);
-          setRoster(cleared);
+      // Use setTimeout to let the UI update before the solver runs
+      setTimeout(() => {
+        try {
+          const sheet = generateGameSheet(roster.players, config);
+          const present = roster.players.filter((p) => !p.absent);
+          const v = validateGameSheet(sheet, present, config);
+          setGameSheet(sheet);
+          setViolations(v);
+
+          if (saveHistory) {
+            const today = new Date().toLocaleDateString("en-US", {
+              weekday: "short",
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            });
+            const updated = addHistoryEntry(roster, today);
+            const cleared = clearAbsences(updated);
+            setRoster(cleared);
+          }
+
+          setActiveTab("preview");
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Failed to generate schedule");
+        } finally {
+          setGenerating(false);
         }
-
-        setActiveTab("preview");
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to generate schedule");
-      }
+      }, 50);
     },
     [roster, config]
   );
@@ -308,14 +317,14 @@ export default function Home() {
 
               <button
                 onClick={handleGenerate}
-                disabled={!canGenerate}
+                disabled={!canGenerate || generating}
                 className={`w-full py-3 rounded-lg font-bold text-white text-sm transition-colors ${
-                  canGenerate
+                  canGenerate && !generating
                     ? "bg-[#002d62] hover:bg-[#003d82] active:bg-[#001d42]"
                     : "bg-gray-300 cursor-not-allowed"
                 }`}
               >
-                Generate Game Sheet
+                {generating ? "Generating..." : "Generate Game Sheet"}
               </button>
             </>
           )}
