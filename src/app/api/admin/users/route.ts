@@ -3,7 +3,7 @@ import { isAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { users } from "@/lib/schema";
 import { eq } from "drizzle-orm";
-import { sendApprovalNotification, sendInviteEmail } from "@/lib/email";
+import { sendApprovalNotification, sendInviteEmail, sendPendingSignupEmail } from "@/lib/email";
 
 export async function GET(request: NextRequest) {
   if (!(await isAdmin(request))) {
@@ -42,9 +42,13 @@ export async function POST(request: NextRequest) {
       })
       .returning();
 
-    // Send invite email if creating as approved
+    // Send appropriate email
     if ((status || "approved") === "approved") {
       await sendInviteEmail(email.toLowerCase().trim());
+    } else if (status === "pending") {
+      sendPendingSignupEmail(email.toLowerCase().trim(), name || null).catch(err =>
+        console.error("[ADMIN] Failed to send pending email:", err)
+      );
     }
 
     return NextResponse.json({ user }, { status: 201 });

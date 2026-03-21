@@ -4,7 +4,7 @@ import { createSessionToken, SESSION_COOKIE, COOKIE_OPTIONS } from "@/lib/sessio
 import { db } from "@/lib/db";
 import { users } from "@/lib/schema";
 import { eq } from "drizzle-orm";
-import { sendNewSignupNotification } from "@/lib/email";
+import { sendNewSignupNotification, sendPendingSignupEmail } from "@/lib/email";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -122,9 +122,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(loginUrl);
     }
 
-    // Send notification for new signups
+    // Send notifications for new signups
     if (isNewUser) {
       await sendNewSignupNotification(name, email, "Google");
+      if (user.status === "pending") {
+        sendPendingSignupEmail(email, name).catch(err =>
+          console.error("[GOOGLE-LOGIN] Failed to send pending email:", err)
+        );
+      }
     }
 
     // Create session
