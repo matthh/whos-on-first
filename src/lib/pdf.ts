@@ -124,6 +124,9 @@ export async function generatePDF(
       0: { halign: "left", cellWidth: 35 },
     },
     didParseCell(data) {
+      if (data.section === "head" && data.column.index === 0) {
+        data.cell.styles.halign = "left";
+      }
       if (data.section === "body" && data.column.index >= 1) {
         if (String(data.cell.raw) === "BENCH") {
           data.cell.styles.fillColor = [210, 210, 210];
@@ -152,7 +155,7 @@ export async function generatePDF(
     ...Array.from({ length: innings }, (_, i) => `${i + 1}`),
     "FINAL",
   ];
-  const scoreRows = [[""], [""], [""]].map((row) => [
+  const scoreRows = [[""], [""]].map((row) => [
     ...row,
     ...Array.from({ length: innings + 1 }, () => ""),
   ]);
@@ -184,6 +187,11 @@ export async function generatePDF(
     columnStyles: {
       0: { halign: "left", cellWidth: 35 },
       [innings + 1]: { fontStyle: "bold" },
+    },
+    didParseCell(data) {
+      if (data.section === "head" && data.column.index === 0) {
+        data.cell.styles.halign = "left";
+      }
     },
   });
 
