@@ -134,14 +134,56 @@ export async function generatePDF(
 
   // Absent note
   const absent = players.filter((p) => p.absent);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let tableEnd = ((doc as any).lastAutoTable?.finalY as number) ?? 120;
   if (absent.length > 0) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const tableEnd = ((doc as any).lastAutoTable?.finalY as number) ?? 120;
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(150, 150, 150);
     doc.text(`Absent: ${absent.map((p) => p.name).join(", ")}`, 14, tableEnd + 6);
+    tableEnd += 10;
   }
+
+  // Scorecard
+  const scoreHeaders = [
+    "TEAM",
+    ...Array.from({ length: innings }, (_, i) => `${i + 1}`),
+    "FINAL",
+  ];
+  const scoreRows = [[""], [""], [""]].map((row) => [
+    ...row,
+    ...Array.from({ length: innings + 1 }, () => ""),
+  ]);
+
+  autoTable(doc, {
+    startY: tableEnd + 6,
+    head: [scoreHeaders],
+    body: scoreRows,
+    theme: "grid",
+    styles: {
+      fontSize: 11,
+      cellPadding: 3,
+      lineColor: [180, 180, 180],
+      lineWidth: 0.3,
+      minCellHeight: 8,
+    },
+    headStyles: {
+      fillColor: [220, 220, 220],
+      textColor: [60, 60, 60],
+      fontStyle: "bold",
+      halign: "center",
+      fontSize: 10,
+    },
+    bodyStyles: {
+      halign: "center",
+      textColor: [60, 60, 60],
+      fontSize: 11,
+    },
+    columnStyles: {
+      0: { halign: "left", cellWidth: 35 },
+      [innings + 1]: { fontStyle: "bold" },
+    },
+  });
 
   return doc;
 }
