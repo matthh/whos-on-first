@@ -78,9 +78,11 @@ export async function generatePDF(
   doc.line(20, startY + 9, pageWidth - 20, startY + 9);
 
   // Table
+  const HEADER_BG: [number, number, number] = [27, 42, 78];
+
   const headers = [
     "PLAYER",
-    ...Array.from({ length: innings }, (_, i) => `INN ${i + 1}`),
+    ...Array.from({ length: innings }, (_, i) => `${i + 1}`),
   ];
 
   const rows = present.map((player) => {
@@ -106,8 +108,8 @@ export async function generatePDF(
       overflow: "visible",
     },
     headStyles: {
-      fillColor: [220, 220, 220],
-      textColor: [60, 60, 60],
+      fillColor: HEADER_BG,
+      textColor: [255, 255, 255],
       fontStyle: "bold",
       halign: "center",
       fontSize: 10,
@@ -168,8 +170,8 @@ export async function generatePDF(
       minCellHeight: 8,
     },
     headStyles: {
-      fillColor: [220, 220, 220],
-      textColor: [60, 60, 60],
+      fillColor: HEADER_BG,
+      textColor: [255, 255, 255],
       fontStyle: "bold",
       halign: "center",
       fontSize: 10,
