@@ -96,7 +96,7 @@ function SortablePlayer({
   };
 
   // Use effective rank for eligibility (absent players don't count)
-  const eligibleFor = player.absent ? [] : restrictions.filter(r => r.enabled && effectiveRank <= r.topN);
+  const eligibleFor = player.absent ? [] : restrictions.filter(r => r.enabled && effectiveRank <= r.topN).sort((a, b) => a.topN - b.topN);
 
   return (
     <div
@@ -265,7 +265,7 @@ export default function RosterList({
         </div>
         {restrictions.filter(r => r.enabled).length > 0 && (
           <div className="flex gap-2 text-[10px] flex-wrap">
-            {restrictions.filter(r => r.enabled).map((r) => {
+            {[...restrictions.filter(r => r.enabled)].sort((a, b) => a.topN - b.topN).map((r) => {
               const colorIdx = colorMap.get(r.topN) ?? 0;
               const colors = RESTRICTION_COLORS[colorIdx] || RESTRICTION_COLORS[0];
               return (
