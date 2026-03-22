@@ -38,7 +38,13 @@ export default function ConstraintsPanel({
   };
 
   const updateRestrictions = (restrictions: PositionRestriction[]) => {
-    onChange({ ...config, restrictions });
+    // Auto-sort by canonical field position order
+    const sorted = [...restrictions].sort(
+      (a, b) =>
+        AVAILABLE_POSITIONS.indexOf(a.position) -
+        AVAILABLE_POSITIONS.indexOf(b.position)
+    );
+    onChange({ ...config, restrictions: sorted });
   };
 
   const handleAddRestriction = () => {
