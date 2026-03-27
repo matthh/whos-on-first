@@ -84,19 +84,14 @@ export default function PracticePanel({
     setGenerating(true);
     try {
       const colors = await extractColorsFromDataUrl(config.logoDataUrl);
-      const doc = await generatePracticePDF(
+      const result = await generatePracticePDF(
         presentPlayers,
         practice,
         config.teamName,
         config.logoDataUrl,
         colors
       );
-      const ts = new Date()
-        .toISOString()
-        .replace(/[:.]/g, "")
-        .slice(0, 15);
-      const name = config.teamName.toLowerCase().replace(/\s+/g, "_");
-      doc.save(`${name}_practice_${ts}.pdf`);
+      result.save();
     } catch (err) {
       console.error("Practice PDF error:", err);
     } finally {
