@@ -173,45 +173,59 @@ type RGB = [number, number, number];
 function sectionHeader(doc: jsPDF, y: number, text: string, timeText: string, primary: RGB, pageW: number): number {
   const margin = 12;
   const w = pageW - margin * 2;
+  const maxTextW = w - 6; // available width inside bar
+
+  // Measure at default size, shrink if needed
+  let fontSize = 11;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(fontSize);
+  const timeW = doc.getTextWidth(timeText) + 4;
+  while (fontSize > 7 && doc.getTextWidth(text) + timeW > maxTextW) {
+    fontSize -= 0.5;
+    doc.setFontSize(fontSize);
+  }
+
   doc.setFillColor(...primary);
   doc.rect(margin, y, w, 8, "F");
-  doc.setFontSize(11);
-  doc.setFont("helvetica", "bold");
+  doc.setFontSize(fontSize);
   doc.setTextColor(255, 255, 255);
   doc.text(text, margin + 3, y + 5.5);
-  doc.setFontSize(9);
+  doc.setFontSize(Math.max(fontSize - 1.5, 7));
   doc.text(timeText, pageW - margin - 3, y + 5.5, { align: "right" });
   return y + 9;
 }
 
-function sectionBody(doc: jsPDF, y: number, guide: StationGuide, secondary: RGB, pageW: number, pageH: number): number {
+// trimLevel: 0 = full, 1 = no quotes, 2 = no quotes + max 2 drills, 3 = no quotes + 1 drill
+function sectionBody(doc: jsPDF, y: number, guide: StationGuide, secondary: RGB, pageW: number, pageH: number, trimLevel: number = 0): number {
   const margin = 12;
   const bodyX = margin + 4;
   const maxW = pageW - margin - bodyX - 2;
   const startY = y;
 
-  // Setup line
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "bolditalic");
-  doc.setTextColor(90, 90, 90);
-  const setupLines = doc.splitTextToSize(guide.setup, maxW);
-  doc.text(setupLines, bodyX, y + 3.5);
-  y += setupLines.length * 3.8 + 1.5;
+  // Setup line (skip if empty)
+  if (guide.setup) {
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bolditalic");
+    doc.setTextColor(90, 90, 90);
+    const setupLines = doc.splitTextToSize(guide.setup, maxW);
+    doc.text(setupLines, bodyX, y + 3.5);
+    y += setupLines.length * 3.8 + 1.5;
+  }
 
-  // Drills
+  // Drills — trim based on level
+  const maxDrills = trimLevel >= 3 ? 1 : trimLevel >= 2 ? 2 : guide.drills.length;
   doc.setFont("helvetica", "normal");
   doc.setTextColor(40, 40, 40);
   doc.setFontSize(9);
-  for (const drill of guide.drills) {
-    if (y > pageH - 10) break;
-    const lines = doc.splitTextToSize(`\u2022 ${drill}`, maxW);
+  for (let d = 0; d < Math.min(guide.drills.length, maxDrills); d++) {
+    const lines = doc.splitTextToSize(`\u2022 ${guide.drills[d]}`, maxW);
     doc.text(lines, bodyX + 1, y + 3);
     y += lines.length * 3.8 + 0.5;
   }
   y += 1;
 
-  // Coach quote
-  if (y < pageH - 10) {
+  // Coach quote — skip if trimming or empty
+  if (trimLevel === 0 && guide.coachQuote) {
     doc.setFontSize(8.5);
     doc.setFont("helvetica", "bolditalic");
     doc.setTextColor(...secondary);
@@ -235,17 +249,39 @@ export async function generatePracticePDF(
   logoDataUrl: string | null | undefined,
   colors: TeamColors
 ): Promise<jsPDF> {
+  const pennant = await loadPennant();
+
+  // Try with increasing trim levels until it fits on one page
+  for (let trim = 0; trim <= 3; trim++) {
+    const doc = renderPractice(players, practice, teamName, logoDataUrl, colors, pennant, trim);
+    const numPages = doc.internal.pages.length - 1; // pages is 1-indexed
+    if (numPages <= 1) return doc;
+  }
+
+  // If still overflowing at max trim, return it anyway (shouldn't happen)
+  return renderPractice(players, practice, teamName, logoDataUrl, colors, pennant, 3);
+}
+
+function renderPractice(
+  players: Player[],
+  practice: PracticeConfig,
+  teamName: string,
+  logoDataUrl: string | null | undefined,
+  colors: TeamColors,
+  pennant: string | null,
+  trimLevel: number
+): jsPDF {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "letter" });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
   const primary = hexToRgb(colors.primary) as RGB;
   const secondary = hexToRgb(colors.secondary) as RGB;
   const margin = 12;
+  const bottomMargin = 8;
 
   let y = 6;
 
   // ── Header ──
-  const pennant = await loadPennant();
   if (pennant) {
     try {
       const lw = 44, lh = lw * (1292 / 2521);
@@ -299,8 +335,10 @@ export async function generatePracticePDF(
 
   // ── WARM-UP ──
   let clock = 0;
-  y = sectionHeader(doc, y, "WARM-UP", `${practice.warmupMinutes} mins  (All Together)`, primary, pageW);
-  y = sectionBody(doc, y, getWarmupGuide(practice.ageRange), secondary, pageW, pageH);
+  const warmupGuide = getWarmupGuide(practice.ageRange);
+  y = sectionHeader(doc, y, `WARM-UP (${warmupGuide.coachQuote})`, `${practice.warmupMinutes} mins`, primary, pageW);
+  warmupGuide.coachQuote = "";
+  y = sectionBody(doc, y, warmupGuide, secondary, pageW, pageH, trimLevel);
   clock += practice.warmupMinutes;
 
   // ── ROTATION TABLE ──
@@ -331,49 +369,66 @@ export async function generatePracticePDF(
     const station = activeStations[i] || { name: `Station ${i + 1}` };
     const end = clock + perStation;
 
-
-    y = sectionHeader(doc, y, `STATION ${i + 1}: ${station.name.toUpperCase()}`, `${clock}\u2013${end} mins`, primary, pageW);
-    y = sectionBody(doc, y, getStationGuide(station.name, practice.ageRange), secondary, pageW, pageH);
+    const stGuide = getStationGuide(station.name, practice.ageRange);
+    y = sectionHeader(doc, y, `STATION ${i + 1}: ${station.name.toUpperCase()} (${stGuide.coachQuote})`, `${clock}\u2013${end} mins`, primary, pageW);
+    stGuide.coachQuote = "";
+    y = sectionBody(doc, y, stGuide, secondary, pageW, pageH, trimLevel);
     clock = end;
   }
 
   // ── SCRIMMAGE ──
   if (practice.scrimmageMinutes > 0) {
     clock += 2; // water break
+    const scrGuide = getScrimmageGuide(practice.ageRange);
+    // Move setup + quote into header — strip from body
+    const scrSetup = scrGuide.setup;
+    scrGuide.setup = "";
+    scrGuide.coachQuote = "";
+
     if (practice.stationCount <= 2) {
-      // 2 groups = Group 1 bats, Group 2 fields
-      y = sectionHeader(doc, y, "SCRIMMAGE", `${clock}\u2013${clock + practice.scrimmageMinutes} mins  (Group 1 bats, Group 2 fields)`, primary, pageW);
+      y = sectionHeader(doc, y, `SCRIMMAGE (${scrSetup})`, `${clock}\u2013${clock + practice.scrimmageMinutes} mins`, primary, pageW);
+      y = sectionBody(doc, y, scrGuide, secondary, pageW, pageH, trimLevel);
     } else {
-      // >2 groups: create scrimmage teams from combined groups
       const teams = splitIntoGroups(players, 2);
-      const teamA = teams[0].map(p => p.name).join(", ");
-      const teamB = teams[1].map(p => p.name).join(", ");
-      y = sectionHeader(doc, y, "SCRIMMAGE", `${clock}\u2013${clock + practice.scrimmageMinutes} mins`, primary, pageW);
-      // Add team rosters inline in the body setup
-      const guide = getScrimmageGuide(practice.ageRange);
-      guide.setup = `Team A: ${teamA}  |  Team B: ${teamB}. ${guide.setup}`;
-      y = sectionBody(doc, y, guide, secondary, pageW, pageH);
-      // skip the normal sectionBody below
-      clock += practice.scrimmageMinutes;
-    }
-    if (practice.stationCount <= 2) {
-      y = sectionBody(doc, y, getScrimmageGuide(practice.ageRange), secondary, pageW, pageH);
-      clock += practice.scrimmageMinutes;
+      y = sectionHeader(doc, y, `SCRIMMAGE (${scrSetup})`, `${clock}\u2013${clock + practice.scrimmageMinutes} mins`, primary, pageW);
+      // Render team rosters with bold labels, normal names
+      const bodyX = margin + 4;
+      const startY = y;
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(...primary);
+      doc.text("Team A:", bodyX, y + 3.5);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(60, 60, 60);
+      doc.text(teams[0].map(p => p.name).join(", "), bodyX + doc.getTextWidth("Team A: ") + 1, y + 3.5);
+      y += 4;
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(...primary);
+      doc.text("Team B:", bodyX, y + 3.5);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(60, 60, 60);
+      doc.text(teams[1].map(p => p.name).join(", "), bodyX + doc.getTextWidth("Team B: ") + 1, y + 3.5);
+      y += 5;
+      // Draw accent border for team section
+      doc.setDrawColor(...secondary);
+      doc.setLineWidth(1.2);
+      doc.line(margin + 1.5, startY, margin + 1.5, y);
+      y = sectionBody(doc, y, scrGuide, secondary, pageW, pageH, trimLevel);
     }
   }
 
   // ── COOL-DOWN ──
-  if (y > pageH - 30) { doc.addPage(); y = 10; }
-  y = sectionHeader(doc, y, "COOL-DOWN & HUDDLE", "5 min", primary, pageW);
+  const coolQuote = `"That's ${teamName} baseball. Hands in!"`;
+  y = sectionHeader(doc, y, `COOL-DOWN & HUDDLE (${coolQuote})`, "5 mins", primary, pageW);
   y = sectionBody(doc, y, {
     setup: "Stretch circle as a full team.",
     drills: ["Coach shoutouts — 1 specific thing each kid did well", "Team cheer to close it out!"],
-    coachQuote: `"I'm proud of every one of you. You worked hard. That's ${teamName} baseball. Hands in!"`,
-  }, secondary, pageW, pageH);
+    coachQuote: "",
+  }, secondary, pageW, pageH, trimLevel);
 
   // Absent
   const absent = players.filter(p => p.absent);
-  if (absent.length > 0) {
+  if (absent.length > 0 && y < pageH - bottomMargin) {
     doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(160, 160, 160);
