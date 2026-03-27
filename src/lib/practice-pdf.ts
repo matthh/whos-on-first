@@ -171,61 +171,61 @@ function getScrimmageGuide(age: string): StationGuide {
 type RGB = [number, number, number];
 
 function sectionHeader(doc: jsPDF, y: number, text: string, timeText: string, primary: RGB, pageW: number): number {
-  const margin = 10;
+  const margin = 12;
   const w = pageW - margin * 2;
   doc.setFillColor(...primary);
-  doc.rect(margin, y, w, 5.5, "F");
-  doc.setFontSize(7.5);
+  doc.rect(margin, y, w, 8, "F");
+  doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(255, 255, 255);
-  doc.text(text, margin + 2, y + 3.8);
-  doc.setFontSize(6.5);
-  doc.text(timeText, pageW - margin - 2, y + 3.8, { align: "right" });
-  return y + 6;
+  doc.text(text, margin + 3, y + 5.5);
+  doc.setFontSize(9);
+  doc.text(timeText, pageW - margin - 3, y + 5.5, { align: "right" });
+  return y + 9;
 }
 
 function sectionBody(doc: jsPDF, y: number, guide: StationGuide, secondary: RGB, pageW: number, pageH: number): number {
-  const margin = 10;
-  const bodyX = margin + 3;
+  const margin = 12;
+  const bodyX = margin + 4;
   const maxW = pageW - margin - bodyX - 2;
   const startY = y;
 
   // Setup line
-  doc.setFontSize(6.5);
+  doc.setFontSize(9);
   doc.setFont("helvetica", "bolditalic");
   doc.setTextColor(90, 90, 90);
   const setupLines = doc.splitTextToSize(guide.setup, maxW);
-  doc.text(setupLines, bodyX, y + 2.5);
-  y += setupLines.length * 2.5 + 1;
+  doc.text(setupLines, bodyX, y + 3.5);
+  y += setupLines.length * 3.8 + 1.5;
 
   // Drills
   doc.setFont("helvetica", "normal");
   doc.setTextColor(40, 40, 40);
-  doc.setFontSize(6.5);
+  doc.setFontSize(9);
   for (const drill of guide.drills) {
-    if (y > pageH - 8) break;
+    if (y > pageH - 10) break;
     const lines = doc.splitTextToSize(`\u2022 ${drill}`, maxW);
-    doc.text(lines, bodyX + 1, y + 2.2);
-    y += lines.length * 2.5 + 0.3;
+    doc.text(lines, bodyX + 1, y + 3);
+    y += lines.length * 3.8 + 0.5;
   }
-  y += 0.5;
+  y += 1;
 
   // Coach quote
-  if (y < pageH - 8) {
-    doc.setFontSize(6);
+  if (y < pageH - 10) {
+    doc.setFontSize(8.5);
     doc.setFont("helvetica", "bolditalic");
     doc.setTextColor(...secondary);
     const quoteLines = doc.splitTextToSize(guide.coachQuote, maxW - 2);
-    doc.text(quoteLines, bodyX + 1, y + 2);
-    y += quoteLines.length * 2.3 + 1;
+    doc.text(quoteLines, bodyX + 1, y + 3);
+    y += quoteLines.length * 3.5 + 2;
   }
 
   // Left accent border
   doc.setDrawColor(...secondary);
-  doc.setLineWidth(0.8);
-  doc.line(margin + 1, startY, margin + 1, y);
+  doc.setLineWidth(1.2);
+  doc.line(margin + 1.5, startY, margin + 1.5, y);
 
-  return y + 0.5;
+  return y + 1;
 }
 
 export async function generatePracticePDF(
@@ -240,7 +240,7 @@ export async function generatePracticePDF(
   const pageH = doc.internal.pageSize.getHeight();
   const primary = hexToRgb(colors.primary) as RGB;
   const secondary = hexToRgb(colors.secondary) as RGB;
-  const margin = 10;
+  const margin = 12;
 
   let y = 6;
 
@@ -248,26 +248,26 @@ export async function generatePracticePDF(
   const pennant = await loadPennant();
   if (pennant) {
     try {
-      const lw = 36, lh = lw * (1292 / 2521);
+      const lw = 44, lh = lw * (1292 / 2521);
       doc.addImage(pennant, "PNG", (pageW - lw) / 2, y, lw, lh);
-      y += lh + 1;
+      y += lh + 2;
     } catch { /* skip */ }
   }
 
   if (logoDataUrl) {
-    try { doc.addImage(logoDataUrl, "PNG", margin, y - 1, 6, 6); } catch { /* skip */ }
+    try { doc.addImage(logoDataUrl, "PNG", margin, y - 1, 8, 8); } catch { /* skip */ }
   }
 
-  doc.setFontSize(13);
+  doc.setFontSize(16);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(...primary);
   const title = `${teamName.toUpperCase()} \u2014 PRACTICE PLAN`;
-  doc.text(title, pageW / 2, y + 3.5, { align: "center" });
+  doc.text(title, pageW / 2, y + 5, { align: "center" });
 
   doc.setDrawColor(...secondary);
-  doc.setLineWidth(0.8);
-  doc.line(25, y + 5.5, pageW - 25, y + 5.5);
-  y += 8;
+  doc.setLineWidth(1);
+  doc.line(20, y + 8, pageW - 20, y + 8);
+  y += 12;
 
   // Subtitle
   const dateStr = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
@@ -276,15 +276,15 @@ export async function generatePracticePDF(
   const drillMin = practice.durationMinutes - practice.warmupMinutes - practice.scrimmageMinutes - 5;
   const perStation = practice.stationCount > 0 ? Math.floor(drillMin / practice.stationCount) : 0;
 
-  doc.setFontSize(7.5);
+  doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(100, 100, 100);
   doc.text(`${dateStr}  |  ${practice.durationMinutes} mins  |  Ages ${practice.ageRange}  |  ${players.length} players`, pageW / 2, y, { align: "center" });
-  y += 3.5;
+  y += 5;
 
   // Groups at top
   const groups = splitIntoGroups(players, practice.stationCount);
-  doc.setFontSize(6.5);
+  doc.setFontSize(9);
   for (let i = 0; i < groups.length; i++) {
     doc.setFont("helvetica", "bold");
     doc.setTextColor(...primary);
@@ -292,10 +292,10 @@ export async function generatePracticePDF(
     doc.text(label, margin, y);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(60, 60, 60);
-    doc.text(groups[i].map(p => p.name).join(", "), margin + doc.getTextWidth(label) + 2, y);
-    y += 2.8;
+    doc.text(groups[i].map(p => p.name).join(", "), margin + doc.getTextWidth(label) + 3, y);
+    y += 4;
   }
-  y += 1;
+  y += 2;
 
   // ── WARM-UP ──
   let clock = 0;
@@ -319,8 +319,8 @@ export async function generatePracticePDF(
     body: rotRows,
     theme: "grid",
     margin: { left: margin, right: margin },
-    styles: { fontSize: 6, cellPadding: 1.2, lineColor: [200, 200, 200], lineWidth: 0.2, halign: "center", overflow: "visible" },
-    headStyles: { fillColor: primary, textColor: [255, 255, 255], fontStyle: "bold", fontSize: 6 },
+    styles: { fontSize: 9, cellPadding: 2, lineColor: [200, 200, 200], lineWidth: 0.3, halign: "center", overflow: "visible" },
+    headStyles: { fillColor: primary, textColor: [255, 255, 255], fontStyle: "bold", fontSize: 9 },
     columnStyles: { 0: { fontStyle: "bold", textColor: primary } },
   });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -374,7 +374,7 @@ export async function generatePracticePDF(
   // Absent
   const absent = players.filter(p => p.absent);
   if (absent.length > 0) {
-    doc.setFontSize(6);
+    doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(160, 160, 160);
     doc.text(`Absent: ${absent.map(p => p.name).join(", ")}`, margin, y);
