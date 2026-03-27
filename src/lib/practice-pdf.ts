@@ -327,7 +327,7 @@ export async function generatePracticePDF(
 <html>
 <head>
 <meta charset="utf-8">
-<title>${teamName} — Practice Plan</title>
+<title>${teamName} Practice Plan ${new Date().toISOString().replace(/[:.]/g, "").slice(0, 15)}</title>
 <style>
   @page { margin: 12mm 14mm; size: letter; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
