@@ -5,6 +5,7 @@ import { Player, GameSheet, HistoryEntry } from "@/lib/types";
 import { generateGameSheet, validateGameSheet } from "@/lib/scheduler";
 import { addHistoryEntry } from "@/lib/storage";
 import { generatePDF } from "@/lib/pdf";
+import { extractColorsFromDataUrl } from "@/lib/colors";
 import {
   ConstraintConfig,
   DEFAULT_CONFIG,
@@ -13,6 +14,7 @@ import RosterList from "@/components/RosterList";
 import GameSheetPreview from "@/components/GameSheetPreview";
 import History from "@/components/History";
 import ConstraintsPanel from "@/components/ConstraintsPanel";
+import PracticePanel from "@/components/PracticePanel";
 import Onboarding from "@/components/Onboarding";
 import { RosterData } from "@/lib/types";
 
@@ -26,6 +28,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [config, setConfig] = useState<ConstraintConfig | null>(null);
   const [showConstraints, setShowConstraints] = useState(false);
+  const [showPractice, setShowPractice] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [userStatus, setUserStatus] = useState<string | null>(null);
@@ -286,12 +289,14 @@ export default function Home() {
 
   const handleExportPDF = useCallback(async () => {
     if (!roster || !gameSheet || !config) return;
+    const colors = await extractColorsFromDataUrl(config.logoDataUrl);
     const doc = await generatePDF(
       roster.players,
       gameSheet,
       config.teamName,
       config.logoDataUrl,
-      config.innings
+      config.innings,
+      colors
     );
     const ts = new Date().toISOString().replace(/[:.]/g, "").slice(0, 15);
     doc.save(`game-sheet-${ts}.pdf`);
@@ -465,18 +470,33 @@ export default function Home() {
             </>
           )}
 
-          {/* Constraints — below generate button */}
-          <button
-            onClick={() => setShowConstraints(!showConstraints)}
-            className="text-xs text-gray-400 hover:text-[#002d62] transition-colors"
-          >
-            {showConstraints ? "Hide" : "View"} Scheduling Constraints
-          </button>
+          {/* Constraints & Practice — below generate button */}
+          <div className="flex gap-3">
+            <button
+              onClick={() => setShowConstraints(!showConstraints)}
+              className="text-xs text-gray-400 hover:text-[#002d62] transition-colors"
+            >
+              {showConstraints ? "Hide" : "View"} Scheduling Constraints
+            </button>
+            <button
+              onClick={() => setShowPractice(!showPractice)}
+              className="text-xs text-gray-400 hover:text-[#002d62] transition-colors"
+            >
+              {showPractice ? "Hide" : "Create"} Practice Plan
+            </button>
+          </div>
           {showConstraints && (
             <ConstraintsPanel
               config={config}
               onChange={handleConfigChange}
               onClose={() => setShowConstraints(false)}
+            />
+          )}
+          {showPractice && (
+            <PracticePanel
+              config={config}
+              players={roster.players}
+              onConfigChange={handleConfigChange}
             />
           )}
         </div>

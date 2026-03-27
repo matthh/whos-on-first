@@ -15,6 +15,41 @@ export interface PositionRestriction {
   enabled: boolean;
 }
 
+export interface PracticeStation {
+  name: string;
+  enabled: boolean;
+}
+
+export interface PracticeConfig {
+  durationMinutes: number;
+  ageRange: string;
+  stationCount: number;
+  stations: PracticeStation[];
+  scrimmageMinutes: number;
+  warmupMinutes: number;
+}
+
+export const DEFAULT_PRACTICE_STATIONS: PracticeStation[] = [
+  { name: "Throwing Accuracy", enabled: true },
+  { name: "Fielding Grounders", enabled: true },
+  { name: "Fly Balls", enabled: true },
+  { name: "Hitting / Tee Work", enabled: true },
+  { name: "Base Running", enabled: true },
+  { name: "Bunting", enabled: false },
+  { name: "Catching / Blocking", enabled: false },
+  { name: "Pitching Mechanics", enabled: false },
+  { name: "Soft Toss", enabled: false },
+];
+
+export const DEFAULT_PRACTICE_CONFIG: PracticeConfig = {
+  durationMinutes: 90,
+  ageRange: "7-8",
+  stationCount: 4,
+  stations: DEFAULT_PRACTICE_STATIONS,
+  scrimmageMinutes: 30,
+  warmupMinutes: 10,
+};
+
 export interface ConstraintConfig {
   positioning: Record<string, boolean>; // constraint id -> enabled
   restrictions: PositionRestriction[];
@@ -26,6 +61,7 @@ export interface ConstraintConfig {
   innings: number;
   fieldPositions: string[];
   maxInningsPitched: number | null;
+  practiceConfig?: PracticeConfig;
 }
 
 // ── Default constraints ──────────────────────────────────────────────

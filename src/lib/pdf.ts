@@ -1,6 +1,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { Player, GameSheet } from "./types";
+import { TeamColors, hexToRgb } from "./colors";
 
 /**
  * Load the pennant logo as a data URL for embedding in the PDF.
@@ -32,7 +33,8 @@ export async function generatePDF(
   sheet: GameSheet,
   teamName: string,
   logoDataUrl?: string | null,
-  innings: number = 6
+  innings: number = 6,
+  colors?: TeamColors
 ): Promise<jsPDF> {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "letter" });
   const present = players.filter((p) => !p.absent).sort((a, b) => a.rank - b.rank);
@@ -64,21 +66,24 @@ export async function generatePDF(
     }
   }
 
+  const primaryRgb = colors ? hexToRgb(colors.primary) : [27, 42, 78] as [number, number, number];
+  const secondaryRgb = colors ? hexToRgb(colors.secondary) : [230, 160, 0] as [number, number, number];
+
   doc.setFontSize(14);
   doc.setFont("helvetica", "bold");
-  doc.setTextColor(60, 60, 60);
+  doc.setTextColor(...primaryRgb);
   const title = `${teamName.toUpperCase()} — DEFENSIVE POSITIONS`;
   const titleWidth = doc.getTextWidth(title);
   const centerX = (pageWidth - titleWidth) / 2;
   doc.text(title, logoDataUrl ? Math.max(titleX, centerX) : centerX, startY + 5);
 
-  // Orange accent line
-  doc.setDrawColor(230, 160, 0);
+  // Accent line using team secondary color
+  doc.setDrawColor(...secondaryRgb);
   doc.setLineWidth(0.8);
   doc.line(20, startY + 9, pageWidth - 20, startY + 9);
 
   // Table
-  const HEADER_BG: [number, number, number] = [27, 42, 78];
+  const HEADER_BG: [number, number, number] = primaryRgb as [number, number, number];
 
   const headers = [
     "PLAYER",
