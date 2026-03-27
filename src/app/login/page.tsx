@@ -10,6 +10,11 @@ function LoginContent() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="max-w-sm w-full space-y-6 text-center">
+        {/* Pennant logo */}
+        <div className="flex justify-center">
+          <img src="/logo.png" alt="Who's On First" className="h-28 object-contain" />
+        </div>
+
         <div>
           <h1 className="text-3xl font-bold text-[#002d62]">Who&apos;s On First</h1>
           <p className="text-sm text-gray-500 mt-1">
@@ -53,6 +58,11 @@ function LoginContent() {
         <p className="text-xs text-gray-400">
           New coaches will need admin approval before accessing the app.
         </p>
+
+        <div className="flex justify-center gap-4 pt-2">
+          <a href="/terms" className="text-xs text-gray-400 hover:text-gray-600 underline">Terms of Service</a>
+          <a href="/privacy" className="text-xs text-gray-400 hover:text-gray-600 underline">Privacy Policy</a>
+        </div>
       </div>
     </div>
   );
