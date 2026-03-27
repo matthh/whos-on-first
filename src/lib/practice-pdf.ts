@@ -176,7 +176,7 @@ function sectionHeader(doc: jsPDF, y: number, text: string, timeText: string, pr
   const maxTextW = w - 6; // available width inside bar
 
   // Measure at default size, shrink if needed
-  let fontSize = 11;
+  let fontSize = 9.5;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(fontSize);
   const timeW = doc.getTextWidth(timeText) + 4;
@@ -347,8 +347,7 @@ function renderPractice(
   const rotHead = ["Round", ...groups.map((_, i) => `Group ${i + 1}`)];
   const rotRows: string[][] = [];
   for (let r = 0; r < practice.stationCount; r++) {
-    const c = clock + r * perStation;
-    rotRows.push([`${r + 1} (${c} mins)`, ...groups.map((_, g) => activeStations[(g + r) % practice.stationCount]?.name || "?")]);
+    rotRows.push([`${r + 1}`, ...groups.map((_, g) => activeStations[(g + r) % practice.stationCount]?.name || "?")]);
   }
 
   autoTable(doc, {
