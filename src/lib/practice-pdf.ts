@@ -171,60 +171,61 @@ function getScrimmageGuide(age: string): StationGuide {
 type RGB = [number, number, number];
 
 function sectionHeader(doc: jsPDF, y: number, text: string, timeText: string, primary: RGB, pageW: number): number {
-  const margin = 12;
+  const margin = 10;
   const w = pageW - margin * 2;
   doc.setFillColor(...primary);
-  doc.rect(margin, y, w, 6, "F");
-  doc.setFontSize(8);
+  doc.rect(margin, y, w, 5.5, "F");
+  doc.setFontSize(7.5);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(255, 255, 255);
-  doc.text(text, margin + 2, y + 4.2);
-  doc.text(timeText, pageW - margin - 2, y + 4.2, { align: "right" });
-  return y + 7;
+  doc.text(text, margin + 2, y + 3.8);
+  doc.setFontSize(6.5);
+  doc.text(timeText, pageW - margin - 2, y + 3.8, { align: "right" });
+  return y + 6;
 }
 
 function sectionBody(doc: jsPDF, y: number, guide: StationGuide, secondary: RGB, pageW: number, pageH: number): number {
-  const margin = 12;
+  const margin = 10;
   const bodyX = margin + 3;
   const maxW = pageW - margin - bodyX - 2;
   const startY = y;
 
   // Setup line
-  doc.setFontSize(7);
+  doc.setFontSize(6.5);
   doc.setFont("helvetica", "bolditalic");
   doc.setTextColor(90, 90, 90);
   const setupLines = doc.splitTextToSize(guide.setup, maxW);
-  doc.text(setupLines, bodyX, y + 3);
-  y += setupLines.length * 2.8 + 2;
+  doc.text(setupLines, bodyX, y + 2.5);
+  y += setupLines.length * 2.5 + 1;
 
   // Drills
   doc.setFont("helvetica", "normal");
   doc.setTextColor(40, 40, 40);
-  doc.setFontSize(7);
+  doc.setFontSize(6.5);
   for (const drill of guide.drills) {
-    if (y > pageH - 10) break;
+    if (y > pageH - 8) break;
     const lines = doc.splitTextToSize(`\u2022 ${drill}`, maxW);
-    doc.text(lines, bodyX + 1, y + 2.5);
-    y += lines.length * 2.8 + 0.5;
+    doc.text(lines, bodyX + 1, y + 2.2);
+    y += lines.length * 2.5 + 0.3;
   }
-  y += 1;
+  y += 0.5;
 
   // Coach quote
-  if (y < pageH - 10) {
-    doc.setFontSize(6.5);
+  if (y < pageH - 8) {
+    doc.setFontSize(6);
     doc.setFont("helvetica", "bolditalic");
     doc.setTextColor(...secondary);
-    const quoteLines = doc.splitTextToSize(guide.coachQuote, maxW - 4);
-    doc.text(quoteLines, bodyX + 1, y + 2.5);
-    y += quoteLines.length * 2.5 + 2;
+    const quoteLines = doc.splitTextToSize(guide.coachQuote, maxW - 2);
+    doc.text(quoteLines, bodyX + 1, y + 2);
+    y += quoteLines.length * 2.3 + 1;
   }
 
   // Left accent border
   doc.setDrawColor(...secondary);
-  doc.setLineWidth(1);
+  doc.setLineWidth(0.8);
   doc.line(margin + 1, startY, margin + 1, y);
 
-  return y + 1;
+  return y + 0.5;
 }
 
 export async function generatePracticePDF(
@@ -239,17 +240,17 @@ export async function generatePracticePDF(
   const pageH = doc.internal.pageSize.getHeight();
   const primary = hexToRgb(colors.primary) as RGB;
   const secondary = hexToRgb(colors.secondary) as RGB;
-  const margin = 12;
+  const margin = 10;
 
-  let y = 8;
+  let y = 6;
 
   // ── Header ──
   const pennant = await loadPennant();
   if (pennant) {
     try {
-      const lw = 40, lh = lw * (1292 / 2521);
+      const lw = 36, lh = lw * (1292 / 2521);
       doc.addImage(pennant, "PNG", (pageW - lw) / 2, y, lw, lh);
-      y += lh + 2;
+      y += lh + 1;
     } catch { /* skip */ }
   }
 
@@ -257,16 +258,16 @@ export async function generatePracticePDF(
     try { doc.addImage(logoDataUrl, "PNG", margin, y - 1, 6, 6); } catch { /* skip */ }
   }
 
-  doc.setFontSize(15);
+  doc.setFontSize(13);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(...primary);
   const title = `${teamName.toUpperCase()} \u2014 PRACTICE PLAN`;
-  doc.text(title, pageW / 2, y + 4, { align: "center" });
+  doc.text(title, pageW / 2, y + 3.5, { align: "center" });
 
   doc.setDrawColor(...secondary);
-  doc.setLineWidth(1);
-  doc.line(25, y + 6.5, pageW - 25, y + 6.5);
-  y += 10;
+  doc.setLineWidth(0.8);
+  doc.line(25, y + 5.5, pageW - 25, y + 5.5);
+  y += 8;
 
   // Subtitle
   const dateStr = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
@@ -275,51 +276,41 @@ export async function generatePracticePDF(
   const drillMin = practice.durationMinutes - practice.warmupMinutes - practice.scrimmageMinutes - 5;
   const perStation = practice.stationCount > 0 ? Math.floor(drillMin / practice.stationCount) : 0;
 
-  doc.setFontSize(8);
+  doc.setFontSize(7.5);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(100, 100, 100);
-  doc.text(`${dateStr}  |  ${practice.durationMinutes} min  |  Ages ${practice.ageRange}  |  ${players.length} players`, pageW / 2, y, { align: "center" });
-  y += 3;
-  doc.setFontSize(7);
-  const stSummary = activeStations.map(s => s.name).join(" / ");
-  doc.text(`${practice.warmupMinutes}min Warm-Up / ${stSummary}${practice.scrimmageMinutes > 0 ? ` + ${practice.scrimmageMinutes}min Scrimmage` : ""}`, pageW / 2, y, { align: "center" });
-  y += 4;
+  doc.text(`${dateStr}  |  ${practice.durationMinutes} mins  |  Ages ${practice.ageRange}  |  ${players.length} players`, pageW / 2, y, { align: "center" });
+  y += 3.5;
 
-  // Scrimmage teams
+  // Groups at top
   const groups = splitIntoGroups(players, practice.stationCount);
-  if (practice.scrimmageMinutes > 0) {
-    const teams = splitIntoGroups(players, 2);
-    doc.setFontSize(7);
+  doc.setFontSize(6.5);
+  for (let i = 0; i < groups.length; i++) {
     doc.setFont("helvetica", "bold");
     doc.setTextColor(...primary);
-    doc.text("SCRIMMAGE TEAM A", margin, y);
+    const label = `GROUP ${i + 1}`;
+    doc.text(label, margin, y);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(60, 60, 60);
-    doc.text(teams[0].map(p => p.name).join(", "), margin + 30, y);
-    y += 3;
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(...primary);
-    doc.text("SCRIMMAGE TEAM B", margin, y);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(60, 60, 60);
-    doc.text(teams[1].map(p => p.name).join(", "), margin + 30, y);
-    y += 4;
+    doc.text(groups[i].map(p => p.name).join(", "), margin + doc.getTextWidth(label) + 2, y);
+    y += 2.8;
   }
+  y += 1;
 
   // ── WARM-UP ──
   let clock = 0;
-  y = sectionHeader(doc, y, "WARM-UP", `0:00\u20130:${String(practice.warmupMinutes).padStart(2, "0")}  (All Together)`, primary, pageW);
+  y = sectionHeader(doc, y, "WARM-UP", `${practice.warmupMinutes} mins  (All Together)`, primary, pageW);
   y = sectionBody(doc, y, getWarmupGuide(practice.ageRange), secondary, pageW, pageH);
   clock += practice.warmupMinutes;
 
   // ── ROTATION TABLE ──
-  y = sectionHeader(doc, y, "STATION ROTATIONS", `${practice.stationCount} stations \u00D7 ${perStation} min`, primary, pageW);
+  y = sectionHeader(doc, y, "STATION ROTATIONS", `${practice.stationCount} stations \u00D7 ${perStation} mins`, primary, pageW);
 
   const rotHead = ["Round", ...groups.map((_, i) => `Group ${i + 1}`)];
   const rotRows: string[][] = [];
   for (let r = 0; r < practice.stationCount; r++) {
     const c = clock + r * perStation;
-    rotRows.push([`${r + 1} (${c}')`, ...groups.map((_, g) => activeStations[(g + r) % practice.stationCount]?.name || "?")]);
+    rotRows.push([`${r + 1} (${c} mins)`, ...groups.map((_, g) => activeStations[(g + r) % practice.stationCount]?.name || "?")]);
   }
 
   autoTable(doc, {
@@ -328,21 +319,20 @@ export async function generatePracticePDF(
     body: rotRows,
     theme: "grid",
     margin: { left: margin, right: margin },
-    styles: { fontSize: 6.5, cellPadding: 1.5, lineColor: [200, 200, 200], lineWidth: 0.2, halign: "center", overflow: "visible" },
-    headStyles: { fillColor: primary, textColor: [255, 255, 255], fontStyle: "bold", fontSize: 6.5 },
+    styles: { fontSize: 6, cellPadding: 1.2, lineColor: [200, 200, 200], lineWidth: 0.2, halign: "center", overflow: "visible" },
+    headStyles: { fillColor: primary, textColor: [255, 255, 255], fontStyle: "bold", fontSize: 6 },
     columnStyles: { 0: { fontStyle: "bold", textColor: primary } },
   });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  y = ((doc as any).lastAutoTable?.finalY as number) + 2;
+  y = ((doc as any).lastAutoTable?.finalY as number) + 1;
 
   // ── STATION DETAILS ──
   for (let i = 0; i < practice.stationCount; i++) {
     const station = activeStations[i] || { name: `Station ${i + 1}` };
     const end = clock + perStation;
 
-    if (y > pageH - 35) { doc.addPage(); y = 10; }
 
-    y = sectionHeader(doc, y, `STATION ${i + 1}: ${station.name.toUpperCase()}`, `${clock}'\u2013${end}'`, primary, pageW);
+    y = sectionHeader(doc, y, `STATION ${i + 1}: ${station.name.toUpperCase()}`, `${clock}\u2013${end} mins`, primary, pageW);
     y = sectionBody(doc, y, getStationGuide(station.name, practice.ageRange), secondary, pageW, pageH);
     clock = end;
   }
@@ -350,9 +340,26 @@ export async function generatePracticePDF(
   // ── SCRIMMAGE ──
   if (practice.scrimmageMinutes > 0) {
     clock += 2; // water break
-    if (y > pageH - 35) { doc.addPage(); y = 10; }
-    y = sectionHeader(doc, y, "SCRIMMAGE", `${clock}'\u2013${clock + practice.scrimmageMinutes}'  (Team A vs Team B)`, primary, pageW);
-    y = sectionBody(doc, y, getScrimmageGuide(practice.ageRange), secondary, pageW, pageH);
+    if (practice.stationCount <= 2) {
+      // 2 groups = Group 1 bats, Group 2 fields
+      y = sectionHeader(doc, y, "SCRIMMAGE", `${clock}\u2013${clock + practice.scrimmageMinutes} mins  (Group 1 bats, Group 2 fields)`, primary, pageW);
+    } else {
+      // >2 groups: create scrimmage teams from combined groups
+      const teams = splitIntoGroups(players, 2);
+      const teamA = teams[0].map(p => p.name).join(", ");
+      const teamB = teams[1].map(p => p.name).join(", ");
+      y = sectionHeader(doc, y, "SCRIMMAGE", `${clock}\u2013${clock + practice.scrimmageMinutes} mins`, primary, pageW);
+      // Add team rosters inline in the body setup
+      const guide = getScrimmageGuide(practice.ageRange);
+      guide.setup = `Team A: ${teamA}  |  Team B: ${teamB}. ${guide.setup}`;
+      y = sectionBody(doc, y, guide, secondary, pageW, pageH);
+      // skip the normal sectionBody below
+      clock += practice.scrimmageMinutes;
+    }
+    if (practice.stationCount <= 2) {
+      y = sectionBody(doc, y, getScrimmageGuide(practice.ageRange), secondary, pageW, pageH);
+      clock += practice.scrimmageMinutes;
+    }
   }
 
   // ── COOL-DOWN ──
@@ -364,59 +371,7 @@ export async function generatePracticePDF(
     coachQuote: `"I'm proud of every one of you. You worked hard. That's ${teamName} baseball. Hands in!"`,
   }, secondary, pageW, pageH);
 
-  // ── COACH CHEAT SHEET ──
-  if (y > pageH - 30) { doc.addPage(); y = 10; }
-
-  y = sectionHeader(doc, y, "COACH CHEAT SHEET", "Say This / Not This", primary, pageW);
-
-  autoTable(doc, {
-    startY: y,
-    head: [["SITUATION", "SAY THIS", "NOT THIS"]],
-    body: [
-      ["Before at-bat", "Stance, load, swing. You got this.", "Don't adjust hands/feet/stance"],
-      ["Before each play", "Where's it going? (then be quiet)", "Don't yell instructions during live play"],
-      ["After a mistake", "What did you see on that play?", "Don't correct mechanics mid-swing"],
-      ["After a freeze", "You got the ball! Where would it have gone?", "Don't say \"you should have...\""],
-      ["After a good play", "Nobody told you what to do and you figured it out!", "Don't over-praise — be specific"],
-    ],
-    theme: "grid",
-    margin: { left: margin, right: margin },
-    styles: { fontSize: 6, cellPadding: 1.5, lineColor: [200, 200, 200], lineWidth: 0.2, overflow: "visible" },
-    headStyles: { fillColor: primary, textColor: [255, 255, 255], fontStyle: "bold", fontSize: 6 },
-    columnStyles: {
-      0: { fontStyle: "bold", cellWidth: 28 },
-      1: { textColor: primary, fontStyle: "bold" },
-      2: { textColor: [160, 160, 160], fontStyle: "italic" },
-    },
-  });
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  y = ((doc as any).lastAutoTable?.finalY as number) + 2;
-
-  // ── GROUPS (compact at bottom) ──
-  if (y > pageH - 20) { doc.addPage(); y = 10; }
-
-  const grpHead = groups.map((_, i) => `Group ${i + 1}`);
-  const maxLen = Math.max(...groups.map(g => g.length));
-  const grpRows: string[][] = [];
-  for (let r = 0; r < maxLen; r++) {
-    grpRows.push(groups.map(g => g[r]?.name || ""));
-  }
-
-  autoTable(doc, {
-    startY: y,
-    head: [grpHead],
-    body: grpRows,
-    theme: "grid",
-    margin: { left: margin, right: margin },
-    styles: { fontSize: 6.5, cellPadding: 1.5, lineColor: [200, 200, 200], lineWidth: 0.2, halign: "center", overflow: "visible" },
-    headStyles: { fillColor: primary, textColor: [255, 255, 255], fontStyle: "bold", fontSize: 6.5 },
-    bodyStyles: { textColor: [50, 50, 50] },
-  });
-
   // Absent
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  y = ((doc as any).lastAutoTable?.finalY as number) + 2;
   const absent = players.filter(p => p.absent);
   if (absent.length > 0) {
     doc.setFontSize(6);
