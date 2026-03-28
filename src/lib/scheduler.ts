@@ -34,15 +34,36 @@ function canPlay(
   return true;
 }
 
+/** Count how many OF innings a player has been assigned so far. */
+function countOFInnings(playerId: string, sheet: Record<string, string | undefined>[], upToInning: number): number {
+  let count = 0;
+  for (let i = 0; i < upToInning; i++) {
+    const pos = sheet[i][playerId];
+    if (pos && pos !== "Bench" && isOF(pos)) count++;
+  }
+  return count;
+}
+
 /** Build position ordering lists from the config's fieldPositions. */
-function buildPositionOrders(fieldPositions: string[]) {
+function buildPositionOrders(fieldPositions: string[], restrictions: PositionRestriction[] = []) {
   const allPos = [...fieldPositions] as Position[];
-  // Premium IF: infield positions first (sorted by the original order), then OF
   const ifPositions = fieldPositions.filter(p => !isOF(p));
   const ofPositions = fieldPositions.filter(p => isOF(p));
-  const premiumIF = [...ifPositions, ...ofPositions] as Position[];
-  // OF first: outfield positions first, then infield in reverse priority
-  const ofFirst = [...ofPositions, ...ifPositions.slice().reverse()] as Position[];
+
+  // Premium IF: most-gated restricted positions first (lowest topN = most exclusive),
+  // then remaining IF positions (excluding C), then OF, then C last.
+  // C is not a premium position — top players should rarely play it.
+  const enabledRestrictions = restrictions.filter(r => r.enabled);
+  const restrictedIF = enabledRestrictions
+    .filter(r => ifPositions.includes(r.position))
+    .sort((a, b) => a.topN - b.topN)
+    .map(r => r.position);
+  const unrestrictedIF = ifPositions.filter(p => !restrictedIF.includes(p) && p !== "C");
+  const catcher = ifPositions.includes("C") ? ["C"] : [];
+  const premiumIF = [...restrictedIF, ...unrestrictedIF, ...ofPositions, ...catcher] as Position[];
+
+  // OF first: outfield positions first, then C, then infield in reverse priority
+  const ofFirst = [...ofPositions, ...catcher, ...unrestrictedIF.slice().reverse(), ...restrictedIF.slice().reverse()] as Position[];
   return { allPos, premiumIF, ofFirst, ofPositions };
 }
 
@@ -64,8 +85,8 @@ function buildPositionOrders(fieldPositions: string[]) {
  */
 const BENCH_6INN: Record<number, number[][]> = {
   10: [[], [], [], [], [], []],
-  11: [[11], [10], [9], [8], [7], [1]],
-  12: [[12,11], [10,9], [8,4], [7,3], [6,2], [5,1]],
+  11: [[11], [10], [9], [8], [7], [6]],
+  12: [[12,11], [10,9], [8,7], [6,5], [4,3], [1,2]],
   13: [
     [13, 8, 5],      // Inn 1: 0 top-4
     [4, 12, 7],      // Inn 2: rank 4 first top-4
@@ -287,10 +308,9 @@ function* solveInning(
     if (!blocked.get(p.id)!.has(inn)) canPlayOF.add(p.id);
   }
 
-  // Sort: players who MUST play OF (only OF-eligible) first,
+  // Sort: players who CAN'T play OF first (they must play IF),
   // then by rank (best first) for IF priority
   const ordered = [...active].sort((a, b) => {
-    const aCanIF = !blocked.get(a.id)!.has(inn) ? true : true; // everyone can play IF
     const aCanOF = canPlayOF.has(a.id);
     const bCanOF = canPlayOF.has(b.id);
 
@@ -303,6 +323,13 @@ function* solveInning(
     if (aCanOF && !bCanOF) return 1;  // b must play IF, assign first
     return a.rank - b.rank; // same OF eligibility: best rank first
   });
+
+  if (inn === 0) {
+    console.log(`[SOLVER] Inning 1 player order: ${ordered.map(p => `${p.name}(r${p.rank}${canPlayOF.has(p.id) ? '' : ' OF-BLOCKED'})`).join(', ')}`);
+    console.log(`[SOLVER] premiumIF order: ${posOrders.premiumIF.join(', ')}`);
+    console.log(`[SOLVER] ofFirst order: ${posOrders.ofFirst.join(', ')}`);
+    console.log(`[SOLVER] topThreshold: ${topThreshold}`);
+  }
 
   const result = new Map<string, Position>();
   const used = new Set<Position>();
@@ -337,10 +364,39 @@ function* solveInning(
       if (canPlayOF.has(ordered[j].id)) ofEligibleRemaining++;
     }
 
-    // Position ordering based on config
+    // Position ordering based on config, rank, and OF innings played.
+    // Most-restricted players (lowest rank) get strongest IF preference.
+    // Players above topThreshold always try OF first.
     let posOrder: Position[];
     if (config.topPlayerPriority) {
-      posOrder = player.rank <= topThreshold ? posOrders.premiumIF : posOrders.ofFirst;
+      // Find the most restrictive topN this player qualifies for
+      const qualifiesFor = config.restrictions
+        .filter(r => r.enabled && player.rank <= r.topN)
+        .sort((a, b) => a.topN - b.topN);
+      const isRestricted = qualifiesFor.length > 0;
+
+      if (isRestricted) {
+        const ofPlayed = countOFInnings(player.id, sheet, inn);
+        const inningsLeft = config.innings - inn;
+        const minOF = (config.positioning["min-outfield"] ?? true) ? 1 : 0;
+
+        if (ofPlayed < minOF && inningsLeft <= 2) {
+          // MUST get an OF inning soon — try OF first
+          const ofOnly = posOrders.premiumIF.filter(p => isOF(p));
+          const ifOnly = posOrders.premiumIF.filter(p => !isOF(p));
+          posOrder = [...ofOnly, ...ifOnly];
+        } else if (ofPlayed >= minOF) {
+          // Already satisfied min-OF — strongly prefer IF
+          const ifOnly = posOrders.premiumIF.filter(p => !isOF(p));
+          const ofOnly = posOrders.premiumIF.filter(p => isOF(p));
+          posOrder = [...ifOnly, ...ofOnly];
+        } else {
+          posOrder = posOrders.premiumIF;
+        }
+      } else {
+        // Not restricted — try OF first to leave IF open for restricted players
+        posOrder = posOrders.ofFirst;
+      }
     } else {
       posOrder = posOrders.allPos;
     }
@@ -433,7 +489,7 @@ export function generateGameSheet(
   if (n > fieldSize + 3) throw new Error(`Maximum ${fieldSize + 3} present players, got ${n}.`);
 
   const bench = buildBench(present, innings, fieldSize);
-  const posOrders = buildPositionOrders(config.fieldPositions);
+  const posOrders = buildPositionOrders(config.fieldPositions, config.restrictions);
 
   const ofBenchAdjacency = config.positioning["of-bench-adjacency"] ?? true;
   const blocked = computeOFBlocked(present, bench, ofBenchAdjacency, innings);
