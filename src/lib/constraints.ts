@@ -17,6 +17,7 @@ export interface PositionRestriction {
 
 export interface PracticeStation {
   name: string;
+  description?: string;
   enabled: boolean;
 }
 

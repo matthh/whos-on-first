@@ -473,13 +473,13 @@ export default function Home() {
           {/* Constraints & Practice — below generate button */}
           <div className="flex gap-3">
             <button
-              onClick={() => setShowConstraints(!showConstraints)}
+              onClick={() => { setShowConstraints(!showConstraints); setShowPractice(false); }}
               className="text-xs text-gray-400 hover:text-[#002d62] transition-colors"
             >
               {showConstraints ? "Hide" : "View"} Scheduling Constraints
             </button>
             <button
-              onClick={() => setShowPractice(!showPractice)}
+              onClick={() => { setShowPractice(!showPractice); setShowConstraints(false); }}
               className="text-xs text-gray-400 hover:text-[#002d62] transition-colors"
             >
               {showPractice ? "Hide" : "Create"} Practice Plan
@@ -510,9 +510,14 @@ export default function Home() {
           teamName={config.teamName}
           logoDataUrl={config.logoDataUrl}
           innings={config.innings}
+          config={config}
           onExportPDF={handleExportPDF}
           onRerun={handleRerun}
           onStartOver={handleStartOver}
+          onSheetChange={(newSheet, newViolations) => {
+            setGameSheet(newSheet);
+            setViolations(newViolations);
+          }}
         />
       )}
 

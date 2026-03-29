@@ -26,6 +26,7 @@ export default function PracticePanel({
   const practice = config.practiceConfig || DEFAULT_PRACTICE_CONFIG;
   const [generating, setGenerating] = useState(false);
   const [customStation, setCustomStation] = useState("");
+  const [customDescription, setCustomDescription] = useState("");
 
   const update = useCallback(
     (partial: Partial<PracticeConfig>) => {
@@ -68,10 +69,15 @@ export default function PracticePanel({
     update({
       stations: [
         ...practice.stations,
-        { name: customStation.trim(), enabled: true },
+        {
+          name: customStation.trim(),
+          description: customDescription.trim() || undefined,
+          enabled: true,
+        },
       ],
     });
     setCustomStation("");
+    setCustomDescription("");
   };
 
   const removeStation = (name: string) => {
@@ -240,6 +246,7 @@ export default function PracticePanel({
                 <button
                   key={station.name}
                   onClick={() => toggleStation(station.name)}
+                  title={station.description || undefined}
                   className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors flex items-center gap-1 ${
                     station.enabled
                       ? "bg-[#002d62] text-white"
@@ -264,22 +271,32 @@ export default function PracticePanel({
           </div>
 
           {/* Add custom station */}
-          <div className="flex gap-1.5 mt-2">
-            <input
-              type="text"
-              value={customStation}
-              onChange={(e) => setCustomStation(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && addCustomStation()}
-              placeholder="Add custom station..."
-              className="flex-1 border border-gray-200 rounded-md px-2 py-1 text-xs"
-            />
-            <button
-              onClick={addCustomStation}
-              disabled={!customStation.trim()}
-              className="px-2 py-1 text-xs font-bold rounded-md bg-gray-100 text-gray-500 hover:bg-gray-200 disabled:opacity-30"
-            >
-              Add
-            </button>
+          <div className="mt-2 space-y-1.5">
+            <div className="flex gap-1.5">
+              <input
+                type="text"
+                value={customStation}
+                onChange={(e) => setCustomStation(e.target.value)}
+                placeholder="Station name..."
+                className="flex-1 border border-gray-200 rounded-md px-2 py-1 text-xs"
+              />
+              <button
+                onClick={addCustomStation}
+                disabled={!customStation.trim()}
+                className="px-2 py-1 text-xs font-bold rounded-md bg-gray-100 text-gray-500 hover:bg-gray-200 disabled:opacity-30"
+              >
+                Add
+              </button>
+            </div>
+            {customStation.trim() && (
+              <textarea
+                value={customDescription}
+                onChange={(e) => setCustomDescription(e.target.value)}
+                placeholder="Describe the drill (what it is, how it works, what skills it builds)..."
+                rows={2}
+                className="w-full border border-gray-200 rounded-md px-2 py-1 text-xs resize-none"
+              />
+            )}
           </div>
         </div>
 

@@ -1,7 +1,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { Player } from "./types";
-import { PracticeConfig } from "./constraints";
+import { PracticeConfig, PracticeStation } from "./constraints";
 import { TeamColors, hexToRgb } from "./colors";
 import { splitIntoGroups } from "@/components/PracticePanel";
 
@@ -34,7 +34,7 @@ interface StationGuide {
   coachQuote: string;
 }
 
-function getStationGuide(name: string, age: string): StationGuide {
+function getStationGuide(name: string, age: string, description?: string): StationGuide {
   const young = age <= "7-8";
   const k = name.toLowerCase();
 
@@ -117,6 +117,19 @@ function getStationGuide(name: string, age: string): StationGuide {
     drills: ["Before EVERY ball: \"Where's your throw going?\" — point and say the base", "Rounds 1-6: always throw to 1B — build the habit", "Rounds 7-12: add imaginary runner — fast decision = good decision"],
     coachQuote: "\"Where's it going? Point to it, say it. Then we play.\"",
   };
+
+  // Custom station with user-provided description
+  if (description) {
+    return {
+      setup: description,
+      drills: [
+        "Run drill as described — coach demonstrates first",
+        young ? "Keep it fun — add a competitive element if possible" : "Focus on game-speed execution",
+        "Rotate players through all roles",
+      ],
+      coachQuote: "\"Let's go — give me your best effort every rep!\"",
+    };
+  }
 
   return {
     setup: "Set up equipment and organize groups.",
@@ -368,7 +381,7 @@ function renderPractice(
     const station = activeStations[i] || { name: `Station ${i + 1}` };
     const end = clock + perStation;
 
-    const stGuide = getStationGuide(station.name, practice.ageRange);
+    const stGuide = getStationGuide(station.name, practice.ageRange, (station as PracticeStation).description);
     y = sectionHeader(doc, y, `STATION ${i + 1}: ${station.name.toUpperCase()} (${stGuide.coachQuote})`, `${clock}\u2013${end} mins`, primary, pageW);
     stGuide.coachQuote = "";
     y = sectionBody(doc, y, stGuide, secondary, pageW, pageH, trimLevel);
