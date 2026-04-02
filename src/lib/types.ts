@@ -3,6 +3,7 @@ export interface Player {
   name: string;
   rank: number; // 1 = best, higher = weaker
   absent: boolean;
+  recognized?: boolean; // player has been recognized this season
 }
 
 export type Position = string;

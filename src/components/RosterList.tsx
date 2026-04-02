@@ -43,11 +43,13 @@ interface RosterListProps {
   players: Player[];
   onReorder: (players: Player[]) => void;
   onToggleAbsent: (id: string) => void;
+  onToggleRecognized?: (id: string) => void;
   onRename: (id: string, name: string) => void;
   onAddPlayer: () => void;
   onRemovePlayer: (id: string) => void;
   /** ID of player whose name input should be focused */
   focusPlayerId?: string | null;
+  trackRecognition?: boolean;
   /** Hide the Add Player button (e.g. when parent shows its own) */
   hideAddButton?: boolean;
   /** Max players allowed */
@@ -61,22 +63,26 @@ function SortablePlayer({
   onToggleAbsent,
   onRename,
   onRemovePlayer,
+  onToggleRecognized,
   onEnter,
   canRemove,
   shouldFocus,
   restrictions,
   colorMap,
   effectiveRank,
+  trackRecognition,
 }: {
   player: Player;
   onToggleAbsent: (id: string) => void;
   onRename: (id: string, name: string) => void;
   onRemovePlayer: (id: string) => void;
+  onToggleRecognized: (id: string) => void;
   onEnter: () => void;
   canRemove: boolean;
   shouldFocus: boolean;
   restrictions: PositionRestriction[];
   colorMap: Map<number, number>;
+  trackRecognition: boolean;
   effectiveRank: number;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -170,6 +176,21 @@ function SortablePlayer({
         );
       })}
 
+      {/* Recognition toggle */}
+      {trackRecognition && (
+        <button
+          onClick={() => onToggleRecognized(player.id)}
+          className={`text-sm transition-colors ${
+            player.recognized
+              ? "text-yellow-500 hover:text-yellow-600"
+              : "text-gray-300 hover:text-yellow-400"
+          }`}
+          title={player.recognized ? "Recognized this season" : "Not yet recognized"}
+        >
+          {player.recognized ? "\u2605" : "\u2606"}
+        </button>
+      )}
+
       {/* Absent toggle */}
       <button
         onClick={() => onToggleAbsent(player.id)}
@@ -203,6 +224,7 @@ export default function RosterList({
   players,
   onReorder,
   onToggleAbsent,
+  onToggleRecognized,
   onRename,
   onAddPlayer,
   onRemovePlayer,
@@ -210,6 +232,7 @@ export default function RosterList({
   hideAddButton,
   maxPlayers = 13,
   restrictions = [],
+  trackRecognition = false,
 }: RosterListProps) {
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -293,6 +316,7 @@ export default function RosterList({
                 key={player.id}
                 player={player}
                 onToggleAbsent={onToggleAbsent}
+                onToggleRecognized={onToggleRecognized || (() => {})}
                 onRename={onRename}
                 onRemovePlayer={onRemovePlayer}
                 onEnter={() => {
@@ -305,6 +329,7 @@ export default function RosterList({
                 restrictions={restrictions}
                 colorMap={colorMap}
                 effectiveRank={effectiveRanks.get(player.id) ?? player.rank}
+                trackRecognition={trackRecognition}
               />
             ))}
           </div>

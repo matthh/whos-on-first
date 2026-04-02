@@ -62,6 +62,7 @@ export interface ConstraintConfig {
   innings: number;
   fieldPositions: string[];
   maxInningsPitched: number | null;
+  trackRecognition: boolean;
   practiceConfig?: PracticeConfig;
 }
 
@@ -214,6 +215,7 @@ export const DEFAULT_CONFIG: ConstraintConfig = {
   innings: 6,
   fieldPositions: DEFAULT_FIELD_POSITIONS,
   maxInningsPitched: null,
+  trackRecognition: false,
 };
 
 // ── Persistence ──────────────────────────────────────────────────────
@@ -238,6 +240,7 @@ export function loadConfig(): ConstraintConfig {
       innings: saved.innings ?? DEFAULT_CONFIG.innings,
       fieldPositions: saved.fieldPositions || DEFAULT_CONFIG.fieldPositions,
       maxInningsPitched: saved.maxInningsPitched !== undefined ? saved.maxInningsPitched : DEFAULT_CONFIG.maxInningsPitched,
+      trackRecognition: saved.trackRecognition ?? DEFAULT_CONFIG.trackRecognition,
     };
   } catch {
     return DEFAULT_CONFIG;

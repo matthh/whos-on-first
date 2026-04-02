@@ -46,6 +46,10 @@ export async function PUT(request: NextRequest) {
       if (typeof p.id !== "string" || typeof p.name !== "string" || typeof p.rank !== "number" || typeof p.absent !== "boolean") {
         return NextResponse.json({ error: "Invalid player: each must have id (string), name (string), rank (number), absent (boolean)" }, { status: 400 });
       }
+      // Normalize optional fields
+      if (p.recognized !== undefined && typeof p.recognized !== "boolean") {
+        p.recognized = false;
+      }
       if (p.name.length > 50) {
         return NextResponse.json({ error: "Player name must be 50 characters or less" }, { status: 400 });
       }

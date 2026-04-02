@@ -150,6 +150,7 @@ export default function Onboarding({
       innings,
       fieldPositions,
       maxInningsPitched,
+      trackRecognition: false,
     };
     onComplete({ coachName, teamName, logoDataUrl, players, constraints: config });
   };

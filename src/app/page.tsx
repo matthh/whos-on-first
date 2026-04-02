@@ -88,6 +88,7 @@ export default function Home() {
               maxInningsPitched: savedConfig.maxInningsPitched !== undefined
                 ? savedConfig.maxInningsPitched
                 : DEFAULT_CONFIG.maxInningsPitched,
+              trackRecognition: savedConfig.trackRecognition ?? DEFAULT_CONFIG.trackRecognition,
             }
           : DEFAULT_CONFIG;
 
@@ -150,6 +151,15 @@ export default function Home() {
     (id: string, name: string) => {
       updatePlayers((players) =>
         players.map((p) => (p.id === id ? { ...p, name } : p))
+      );
+    },
+    [updatePlayers]
+  );
+
+  const handleToggleRecognized = useCallback(
+    (id: string) => {
+      updatePlayers((players) =>
+        players.map((p) => (p.id === id ? { ...p, recognized: !p.recognized } : p))
       );
     },
     [updatePlayers]
@@ -449,11 +459,13 @@ export default function Home() {
                 players={roster.players}
                 onReorder={handleReorder}
                 onToggleAbsent={handleToggleAbsent}
+                onToggleRecognized={handleToggleRecognized}
                 onRename={handleRename}
                 onAddPlayer={handleAddPlayer}
                 onRemovePlayer={handleRemovePlayer}
                 focusPlayerId={focusPlayerId}
                 restrictions={config.restrictions}
+                trackRecognition={config.trackRecognition}
               />
 
               <button

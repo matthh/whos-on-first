@@ -341,6 +341,32 @@ export default function ConstraintsPanel({
             </div>
           </div>
         </div>
+
+        {/* Coach Tools */}
+        <div className="px-4 py-3 border-t border-gray-200">
+          <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">
+            Coach Tools
+          </h4>
+          <div className="flex items-start gap-2">
+            <input
+              type="checkbox"
+              checked={config.trackRecognition}
+              onChange={() =>
+                onChange({ ...config, trackRecognition: !config.trackRecognition })
+              }
+              className="mt-0.5 accent-[#002d62]"
+            />
+            <div>
+              <div className="text-sm font-medium text-gray-700">
+                Track player recognition
+              </div>
+              <div className="text-xs text-gray-400">
+                Mark players as recognized during the season (e.g., game ball, card packs).
+                Unrecognized players show a star on the roster and game sheet PDF.
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
