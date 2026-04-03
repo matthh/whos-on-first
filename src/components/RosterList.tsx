@@ -206,7 +206,11 @@ function SortablePlayer({
       {/* Remove button */}
       {canRemove && (
         <button
-          onClick={() => onRemovePlayer(player.id)}
+          onClick={() => {
+            if (confirm(`Remove ${player.name || 'this player'} from the roster? This cannot be undone.`)) {
+              onRemovePlayer(player.id);
+            }
+          }}
           className="text-gray-300 hover:text-red-500 transition-colors"
           title="Remove player"
         >
