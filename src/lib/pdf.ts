@@ -97,8 +97,7 @@ export async function generatePDF(
       if (a === "Bench") return "BENCH";
       return a || "—";
     });
-    const name = player.name.toUpperCase();
-    return [!player.recognized ? "* " + name : name, ...cells];
+    return [player.name.toUpperCase(), ...cells];
   });
 
   autoTable(doc, {
@@ -200,6 +199,21 @@ export async function generatePDF(
       }
     },
   });
+
+  // Recognition focus — list unrecognized players by rank
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let scoreEnd = ((doc as any).lastAutoTable?.finalY as number) ?? tableEnd + 40;
+  const unrecognized = present.filter((p) => !p.recognized);
+  if (unrecognized.length > 0 && unrecognized.length < present.length) {
+    scoreEnd += 6;
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(60, 60, 60);
+    const names = unrecognized.map((p) => p.name.toUpperCase()).join(",  ");
+    const maxW = pageWidth - 28;
+    const lines = doc.splitTextToSize(`RECOGNITION FOCUS:  ${names}`, maxW);
+    doc.text(lines, 14, scoreEnd);
+  }
 
   return doc;
 }
