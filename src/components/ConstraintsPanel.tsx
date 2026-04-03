@@ -60,7 +60,7 @@ export default function ConstraintsPanel({
     <div className="border border-gray-200 rounded-lg bg-white shadow-sm">
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
         <h3 className="font-bold text-sm text-[#002d62]">
-          Scheduling Constraints
+          Settings
         </h3>
         <button
           onClick={onClose}

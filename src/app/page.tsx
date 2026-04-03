@@ -488,7 +488,7 @@ export default function Home() {
               onClick={() => { setShowConstraints(!showConstraints); setShowPractice(false); }}
               className="text-xs text-gray-400 hover:text-[#002d62] transition-colors"
             >
-              {showConstraints ? "Hide" : "View"} Scheduling Constraints
+              {showConstraints ? "Hide" : "View"} Settings
             </button>
             <button
               onClick={() => { setShowPractice(!showPractice); setShowConstraints(false); }}
