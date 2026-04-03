@@ -97,8 +97,8 @@ export async function generatePDF(
       if (a === "Bench") return "BENCH";
       return a || "—";
     });
-    const star = player.recognized ? "" : "\u2606 ";
-    return [star + player.name.toUpperCase(), ...cells];
+    const name = player.name.toUpperCase();
+    return [!player.recognized ? "* " + name : name, ...cells];
   });
 
   autoTable(doc, {
