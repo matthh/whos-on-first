@@ -6,6 +6,17 @@ const STATIC_PATHS = ["/_next/", "/favicon.ico", "/favicon.png", "/logo.png"];
 
 const SESSION_COOKIE = "wof-session";
 const MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
+const USER_ID_HEADER = "x-user-id";
+
+function stripUserIdHeader(headers: Headers): Headers {
+  const newHeaders = new Headers(headers);
+  newHeaders.delete(USER_ID_HEADER);
+  return newHeaders;
+}
+
+function forwardHeaders(newHeaders: Headers): NextResponse {
+  return NextResponse.next({ request: { headers: newHeaders } });
+}
 
 async function validateToken(token: string, secret: string): Promise<number | null> {
   try {
@@ -29,7 +40,12 @@ async function validateToken(token: string, secret: string): Promise<number | nu
       .replace(/\//g, "_")
       .replace(/=+$/, "");
 
-    if (hmac !== expected) return null;
+    // Constant-time comparison (Edge runtime has no crypto.timingSafeEqual).
+    let diff = hmac.length ^ expected.length;
+    for (let i = 0; i < Math.min(hmac.length, expected.length); i++) {
+      diff |= hmac.charCodeAt(i) ^ expected.charCodeAt(i);
+    }
+    if (diff !== 0) return null;
 
     const timestamp = parseInt(timestampStr, 10);
     if (Date.now() - timestamp > MAX_AGE) return null;
@@ -43,14 +59,18 @@ async function validateToken(token: string, secret: string): Promise<number | nu
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // Always start by stripping any client-supplied x-user-id so it can never
+  // be forged on any request path (static, public, or authenticated).
+  const forwardedHeaders = stripUserIdHeader(request.headers);
+
   // Allow static assets
   if (STATIC_PATHS.some((p) => pathname.startsWith(p))) {
-    return NextResponse.next();
+    return forwardHeaders(forwardedHeaders);
   }
 
   // Allow public paths
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
-    return NextResponse.next();
+    return forwardHeaders(forwardedHeaders);
   }
 
   const secret = process.env.SESSION_SECRET;
@@ -77,9 +97,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  const response = NextResponse.next();
-  response.headers.set("x-user-id", String(userId));
-  return response;
+  // Forward the verified user id via request headers so downstream handlers
+  // can read it. We use the documented NextResponse.next({ request }) form
+  // instead of setting it on response headers.
+  forwardedHeaders.set(USER_ID_HEADER, String(userId));
+  return forwardHeaders(forwardedHeaders);
 }
 
 export const config = {

@@ -5,7 +5,9 @@ import { users } from "./schema";
 import { eq } from "drizzle-orm";
 
 function getSecret(): string {
-  return process.env.SESSION_SECRET || "";
+  const s = process.env.SESSION_SECRET;
+  if (!s) throw new Error("SESSION_SECRET not set");
+  return s;
 }
 
 export function getUserId(request: NextRequest): number | null {
@@ -27,7 +29,14 @@ export async function isAdmin(request: NextRequest): Promise<boolean> {
   return user?.role === "admin";
 }
 
-export function signOAuthState(data: Record<string, unknown>): string {
+export type OAuthStatePayload = {
+  provider?: string;
+  nonce?: string;
+  exp?: number;
+  [key: string]: unknown;
+};
+
+export function signOAuthState(data: OAuthStatePayload): string {
   const payload = JSON.stringify(data);
   const hmac = crypto
     .createHmac("sha256", getSecret())
@@ -36,7 +45,7 @@ export function signOAuthState(data: Record<string, unknown>): string {
   return Buffer.from(`${payload}.${hmac}`).toString("base64url");
 }
 
-export function verifyOAuthState(state: string): Record<string, unknown> | null {
+export function verifyOAuthState(state: string): OAuthStatePayload | null {
   try {
     const decoded = Buffer.from(state, "base64url").toString();
     const lastDot = decoded.lastIndexOf(".");
@@ -51,7 +60,7 @@ export function verifyOAuthState(state: string): Record<string, unknown> | null 
     const expectedBuf = Buffer.from(expected);
     if (hmacBuf.length !== expectedBuf.length) return null;
     if (!crypto.timingSafeEqual(hmacBuf, expectedBuf)) return null;
-    return JSON.parse(payload);
+    return JSON.parse(payload) as OAuthStatePayload;
   } catch {
     return null;
   }

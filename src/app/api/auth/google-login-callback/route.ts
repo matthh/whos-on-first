@@ -6,6 +6,14 @@ import { users } from "@/lib/schema";
 import { eq } from "drizzle-orm";
 import { sendNewSignupNotification, sendPendingSignupEmail } from "@/lib/email";
 
+const OAUTH_STATE_COOKIE = "wof-oauth-state";
+
+function redirectWithStateCleared(loginUrl: URL): NextResponse {
+  const response = NextResponse.redirect(loginUrl);
+  response.cookies.delete(OAUTH_STATE_COOKIE);
+  return response;
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
@@ -16,19 +24,35 @@ export async function GET(request: NextRequest) {
 
   if (error) {
     loginUrl.searchParams.set("error", error);
-    return NextResponse.redirect(loginUrl);
+    return redirectWithStateCleared(loginUrl);
   }
 
   if (!code || !state) {
     loginUrl.searchParams.set("error", "Missing code or state");
-    return NextResponse.redirect(loginUrl);
+    return redirectWithStateCleared(loginUrl);
   }
 
-  // Verify state
+  // Verify state HMAC
   const stateData = verifyOAuthState(state);
   if (!stateData || stateData.provider !== "google") {
     loginUrl.searchParams.set("error", "Invalid state");
-    return NextResponse.redirect(loginUrl);
+    return redirectWithStateCleared(loginUrl);
+  }
+
+  // Verify state is session-bound via cookie nonce and not expired.
+  const cookieNonce = request.cookies.get(OAUTH_STATE_COOKIE)?.value;
+  if (
+    typeof stateData.nonce !== "string" ||
+    typeof stateData.exp !== "number" ||
+    !cookieNonce ||
+    stateData.nonce !== cookieNonce
+  ) {
+    loginUrl.searchParams.set("error", "Invalid state");
+    return redirectWithStateCleared(loginUrl);
+  }
+  if (stateData.exp <= Date.now()) {
+    loginUrl.searchParams.set("error", "State expired");
+    return redirectWithStateCleared(loginUrl);
   }
 
   try {
@@ -51,7 +75,7 @@ export async function GET(request: NextRequest) {
     if (!tokenRes.ok) {
       console.error("[GOOGLE-LOGIN] Token exchange failed:", await tokenRes.text());
       loginUrl.searchParams.set("error", "Token exchange failed");
-      return NextResponse.redirect(loginUrl);
+      return redirectWithStateCleared(loginUrl);
     }
 
     const tokens = await tokenRes.json();
@@ -63,7 +87,7 @@ export async function GET(request: NextRequest) {
 
     if (!profileRes.ok) {
       loginUrl.searchParams.set("error", "Failed to fetch profile");
-      return NextResponse.redirect(loginUrl);
+      return redirectWithStateCleared(loginUrl);
     }
 
     const profile = await profileRes.json();
@@ -73,7 +97,7 @@ export async function GET(request: NextRequest) {
 
     if (!email) {
       loginUrl.searchParams.set("error", "No email from Google");
-      return NextResponse.redirect(loginUrl);
+      return redirectWithStateCleared(loginUrl);
     }
 
     // Find or create user
@@ -119,7 +143,7 @@ export async function GET(request: NextRequest) {
 
     if (user.status === "suspended") {
       loginUrl.searchParams.set("error", "Account suspended");
-      return NextResponse.redirect(loginUrl);
+      return redirectWithStateCleared(loginUrl);
     }
 
     // Send notifications for new signups
@@ -136,10 +160,12 @@ export async function GET(request: NextRequest) {
     const token = createSessionToken(user.id);
     const response = NextResponse.redirect(new URL("/", baseUrl));
     response.cookies.set(SESSION_COOKIE, token, COOKIE_OPTIONS);
+    // Clear the one-shot OAuth state cookie on success.
+    response.cookies.delete(OAUTH_STATE_COOKIE);
     return response;
   } catch (err) {
     console.error("[GOOGLE-LOGIN] Error:", err);
     loginUrl.searchParams.set("error", "Authentication failed");
-    return NextResponse.redirect(loginUrl);
+    return redirectWithStateCleared(loginUrl);
   }
 }

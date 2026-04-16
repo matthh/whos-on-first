@@ -1,9 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isAdmin } from "@/lib/auth";
+import { getUserId, isAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { users } from "@/lib/schema";
-import { eq } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import { sendApprovalNotification, sendInviteEmail, sendPendingSignupEmail } from "@/lib/email";
+
+async function countOtherAdmins(targetId: number): Promise<number> {
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(users)
+    .where(and(eq(users.role, "admin"), ne(users.id, targetId)));
+  return Number(row?.count ?? 0);
+}
 
 export async function GET(request: NextRequest) {
   if (!(await isAdmin(request))) {
@@ -78,6 +86,28 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
+  const currentAdminId = getUserId(request);
+
+  // Prevent an admin from demoting themselves — admins must use another admin
+  // account to change their own role.
+  if (role !== undefined && role !== current.role && currentAdminId === id) {
+    return NextResponse.json(
+      { error: "Cannot change your own role" },
+      { status: 400 }
+    );
+  }
+
+  // Guard against demoting the last admin (role: admin -> user).
+  if (role !== undefined && current.role === "admin" && role !== "admin") {
+    const others = await countOtherAdmins(id);
+    if (others === 0) {
+      return NextResponse.json(
+        { error: "Cannot remove last admin" },
+        { status: 400 }
+      );
+    }
+  }
+
   const updates: Record<string, unknown> = {};
   if (name !== undefined) updates.name = name;
   if (email !== undefined) updates.email = email.toLowerCase().trim();
@@ -107,6 +137,29 @@ export async function DELETE(request: NextRequest) {
   const id = parseInt(searchParams.get("id") || "", 10);
   if (!id) {
     return NextResponse.json({ error: "User ID required" }, { status: 400 });
+  }
+
+  const currentAdminId = getUserId(request);
+  if (currentAdminId === id) {
+    return NextResponse.json(
+      { error: "Cannot delete your own account" },
+      { status: 400 }
+    );
+  }
+
+  const [target] = await db.select().from(users).where(eq(users.id, id)).limit(1);
+  if (!target) {
+    return NextResponse.json({ error: "User not found" }, { status: 404 });
+  }
+
+  if (target.role === "admin") {
+    const others = await countOtherAdmins(id);
+    if (others === 0) {
+      return NextResponse.json(
+        { error: "Cannot remove last admin" },
+        { status: 400 }
+      );
+    }
   }
 
   await db.delete(users).where(eq(users.id, id));
