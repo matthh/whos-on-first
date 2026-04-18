@@ -9,6 +9,7 @@ import { extractColorsFromDataUrl } from "@/lib/colors";
 import {
   ConstraintConfig,
   DEFAULT_CONFIG,
+  migrateRestrictions,
 } from "@/lib/constraints";
 import RosterList from "@/components/RosterList";
 import GameSheetPreview from "@/components/GameSheetPreview";
@@ -84,7 +85,7 @@ export default function Home() {
                 ...DEFAULT_CONFIG.positioning,
                 ...(savedConfig.positioning || {}),
               },
-              restrictions: savedConfig.restrictions || DEFAULT_CONFIG.restrictions,
+              restrictions: migrateRestrictions(savedConfig.restrictions),
               innings: savedConfig.innings ?? DEFAULT_CONFIG.innings,
               fieldPositions: savedConfig.fieldPositions || DEFAULT_CONFIG.fieldPositions,
               maxInningsPitched: savedConfig.maxInningsPitched !== undefined

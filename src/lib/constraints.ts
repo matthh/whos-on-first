@@ -199,8 +199,27 @@ export function isOutfieldPosition(pos: string): boolean {
 
 export const DEFAULT_RESTRICTIONS: PositionRestriction[] = [
   { position: "1B", topN: 4, enabled: true },
+  { position: "SS", topN: 4, enabled: true },
   { position: "P", topN: 6, enabled: true },
 ];
+
+/**
+ * One-shot migration applied whenever we load a persisted config. If a
+ * previously-saved config predates a default restriction we now want
+ * everyone on (e.g. SS top-4), splice it in so the scheduler can honour
+ * it without forcing the user to edit the settings UI by hand.
+ */
+export function migrateRestrictions(
+  existing: PositionRestriction[] | undefined,
+): PositionRestriction[] {
+  const list = existing ? [...existing] : [];
+  for (const def of DEFAULT_RESTRICTIONS) {
+    if (!list.some((r) => r.position === def.position)) {
+      list.push({ ...def });
+    }
+  }
+  return list;
+}
 
 export const DEFAULT_CONFIG: ConstraintConfig = {
   positioning: Object.fromEntries(
@@ -236,7 +255,7 @@ export function loadConfig(): ConstraintConfig {
         ...DEFAULT_CONFIG.positioning,
         ...(saved.positioning || {}),
       },
-      restrictions: saved.restrictions || DEFAULT_CONFIG.restrictions,
+      restrictions: migrateRestrictions(saved.restrictions),
       innings: saved.innings ?? DEFAULT_CONFIG.innings,
       fieldPositions: saved.fieldPositions || DEFAULT_CONFIG.fieldPositions,
       maxInningsPitched: saved.maxInningsPitched !== undefined ? saved.maxInningsPitched : DEFAULT_CONFIG.maxInningsPitched,
