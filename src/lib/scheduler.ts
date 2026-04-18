@@ -401,6 +401,17 @@ function* solveInning(
       posOrder = posOrders.allPos;
     }
 
+    // Spread restricted positions across all eligible players rather than
+    // locking one player onto one slot. Sort positions so the ones this
+    // player has played least this game come first; ties fall back to the
+    // existing priority ordering. This turns a Cam/Jack 1B↔SS oscillation
+    // into a 4-way rotation across the top-4 infield positions.
+    const counts = posCounts.get(player.id)!;
+    posOrder = posOrder
+      .map((p, i) => ({ p, i, n: counts.get(p) || 0 }))
+      .sort((a, b) => (a.n - b.n) || (a.i - b.i))
+      .map((x) => x.p);
+
     for (const pos of posOrder) {
       if (yieldCount >= MAX_YIELDS) return;
       if (used.has(pos)) continue;
