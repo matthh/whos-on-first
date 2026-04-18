@@ -297,7 +297,7 @@ export default function Home() {
     setActiveTab("roster");
   }, []);
 
-  const handleExportPDF = useCallback(async () => {
+  const handleExportPDF = useCallback(async (opposingTeam: string, isHome: boolean) => {
     if (!roster || !gameSheet || !config) return;
     const colors = await extractColorsFromDataUrl(config.logoDataUrl);
     const doc = await generatePDF(
@@ -306,7 +306,8 @@ export default function Home() {
       config.teamName,
       config.logoDataUrl,
       config.innings,
-      colors
+      colors,
+      { opposingTeam, isHome }
     );
     const ts = new Date().toISOString().replace(/[:.]/g, "").slice(0, 15);
     doc.save(`game-sheet-${ts}.pdf`);

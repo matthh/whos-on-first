@@ -34,7 +34,8 @@ export async function generatePDF(
   teamName: string,
   logoDataUrl?: string | null,
   innings: number = 6,
-  colors?: TeamColors
+  colors?: TeamColors,
+  matchup?: { opposingTeam: string; isHome: boolean },
 ): Promise<jsPDF> {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "letter" });
   const present = players.filter((p) => !p.absent).sort((a, b) => a.rank - b.rank);
@@ -160,7 +161,16 @@ export async function generatePDF(
     ...Array.from({ length: innings }, (_, i) => `${i + 1}`),
     "FINAL",
   ];
-  const scoreRows = [[""], [""]].map((row) => [
+  // Away team bats first (top row), home team second (bottom row).
+  // If we don't have matchup info yet, leave both cells blank so the
+  // user can write names in by hand on the printed sheet.
+  const awayLabel = matchup
+    ? (matchup.isHome ? matchup.opposingTeam : teamName).toUpperCase()
+    : "";
+  const homeLabel = matchup
+    ? (matchup.isHome ? teamName : matchup.opposingTeam).toUpperCase()
+    : "";
+  const scoreRows = [[awayLabel], [homeLabel]].map((row) => [
     ...row,
     ...Array.from({ length: innings + 1 }, () => ""),
   ]);
@@ -190,7 +200,7 @@ export async function generatePDF(
       fontSize: 11,
     },
     columnStyles: {
-      0: { halign: "left", cellWidth: 35 },
+      0: { halign: "left", cellWidth: 35, fontStyle: "bold" },
       [innings + 1]: { fontStyle: "bold" },
     },
     didParseCell(data) {

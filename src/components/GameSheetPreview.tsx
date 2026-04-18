@@ -24,7 +24,7 @@ interface GameSheetPreviewProps {
   logoDataUrl?: string | null;
   innings: number;
   config: ConstraintConfig;
-  onExportPDF: () => void;
+  onExportPDF: (opposingTeam: string, isHome: boolean) => void;
   onRerun: () => void;
   onStartOver: () => void;
   onSheetChange: (sheet: GameSheet, violations: string[]) => void;
@@ -152,6 +152,10 @@ export default function GameSheetPreview({
 
   // Full-player swap state
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
+
+  // Opposing team + home/away for the PDF scorecard
+  const [opposingTeam, setOpposingTeam] = useState("");
+  const [isHome, setIsHome] = useState(true);
 
   // Drag state
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
@@ -393,10 +397,47 @@ export default function GameSheetPreview({
         </div>
       )}
 
+      {/* Game matchup — populates the scorecard TEAM rows in the PDF */}
+      <div className="grid grid-cols-[1fr_auto] gap-3 items-end pt-2">
+        <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">
+          Opposing team
+          <input
+            type="text"
+            value={opposingTeam}
+            onChange={(e) => setOpposingTeam(e.target.value)}
+            placeholder="e.g., Tigers"
+            className="border border-gray-300 rounded-md px-3 py-2 text-sm font-medium text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#002d62]/30"
+          />
+        </label>
+        <div className="flex flex-col gap-1 text-xs font-medium text-gray-600">
+          We are
+          <div className="inline-flex rounded-md overflow-hidden border border-gray-300 text-sm font-bold">
+            <button
+              type="button"
+              onClick={() => setIsHome(true)}
+              className={`px-4 py-2 transition-colors ${
+                isHome ? "bg-[#002d62] text-white" : "bg-white text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              Home
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsHome(false)}
+              className={`px-4 py-2 transition-colors ${
+                !isHome ? "bg-[#002d62] text-white" : "bg-white text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              Away
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Action buttons */}
       <div className="flex gap-3">
         <button
-          onClick={onExportPDF}
+          onClick={() => onExportPDF(opposingTeam.trim(), isHome)}
           className="flex-1 py-3 rounded-lg font-bold text-white text-sm bg-[#002d62] hover:bg-[#003d82] active:bg-[#001d42] transition-colors whitespace-nowrap"
         >
           Export to PDF
