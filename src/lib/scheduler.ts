@@ -535,11 +535,33 @@ export function generateGameSheet(
 
     const active = present.filter(p => !bench[inn].has(p.id));
 
-    // When randomizing, shuffle position orders per inning
+    // When randomizing, shuffle only tiebreakers — not the restricted-first
+    // ordering that gives 1B/SS/P priority to top players. A flat shuffle
+    // here was letting top-ranked players pick LF/CF before 1B on reruns,
+    // which is exactly the degradation the user complained about.
+    function shuffledWithinGroups(positions: Position[]): Position[] {
+      const restricted = new Set(
+        config.restrictions.filter(r => r.enabled && !isOF(r.position)).map(r => r.position),
+      );
+      const tierOf = (p: Position): number =>
+        restricted.has(p) ? 0 : (!isOF(p) && p !== "C") ? 1 : isOF(p) ? 2 : 3;
+      const groups = new Map<number, Position[]>();
+      positions.forEach((p) => {
+        const t = tierOf(p);
+        if (!groups.has(t)) groups.set(t, []);
+        groups.get(t)!.push(p);
+      });
+      const out: Position[] = [];
+      for (const t of [0, 1, 2, 3]) {
+        const g = groups.get(t);
+        if (g) out.push(...shuffle([...g]));
+      }
+      return out;
+    }
     const innPosOrders = randomize ? {
       ...posOrders,
-      premiumIF: shuffle([...posOrders.premiumIF]),
-      ofFirst: shuffle([...posOrders.ofFirst]),
+      premiumIF: shuffledWithinGroups(posOrders.premiumIF),
+      ofFirst: shuffledWithinGroups(posOrders.ofFirst.slice().reverse()).reverse(),
       allPos: shuffle([...posOrders.allPos]),
     } : posOrders;
 
