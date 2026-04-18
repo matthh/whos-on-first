@@ -27,6 +27,8 @@ export default function Home() {
   const [violations, setViolations] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [config, setConfig] = useState<ConstraintConfig | null>(null);
+  const [editingTeamName, setEditingTeamName] = useState(false);
+  const [teamNameDraft, setTeamNameDraft] = useState("");
   const [showConstraints, setShowConstraints] = useState(false);
   const [showPractice, setShowPractice] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -410,7 +412,41 @@ export default function Home() {
           {config.logoDataUrl && (
             <img src={config.logoDataUrl} alt="Team logo" className="w-6 h-6 object-contain" />
           )}
-          <span className="text-sm font-bold text-[#002d62]">{config.teamName}</span>
+          {editingTeamName ? (
+            <input
+              autoFocus
+              type="text"
+              value={teamNameDraft}
+              onChange={(e) => setTeamNameDraft(e.target.value)}
+              onBlur={() => {
+                const next = teamNameDraft.trim();
+                if (next && next !== config.teamName) {
+                  setConfig({ ...config, teamName: next });
+                }
+                setEditingTeamName(false);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                if (e.key === "Escape") {
+                  setTeamNameDraft(config.teamName);
+                  setEditingTeamName(false);
+                }
+              }}
+              className="text-sm font-bold text-[#002d62] bg-transparent border-b border-[#002d62]/40 focus:outline-none focus:border-[#002d62] px-0.5 w-40"
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setTeamNameDraft(config.teamName);
+                setEditingTeamName(true);
+              }}
+              title="Click to rename team"
+              className="text-sm font-bold text-[#002d62] hover:underline"
+            >
+              {config.teamName}
+            </button>
+          )}
         </div>
         <div className="flex gap-1">
           {(["roster", "preview", "history"] as Tab[]).map((tab) => (
