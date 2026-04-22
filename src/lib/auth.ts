@@ -1,8 +1,8 @@
 import crypto from "crypto";
 import { NextRequest } from "next/server";
 import { db } from "./db";
-import { users } from "./schema";
-import { eq } from "drizzle-orm";
+import { users, teams } from "./schema";
+import { eq, and } from "drizzle-orm";
 
 function getSecret(): string {
   const s = process.env.SESSION_SECRET;
@@ -27,6 +27,41 @@ export async function getUser(request: NextRequest) {
 export async function isAdmin(request: NextRequest): Promise<boolean> {
   const user = await getUser(request);
   return user?.role === "admin";
+}
+
+/**
+ * Returns the user's currently-active team row, or null if they have none.
+ * If the user has teams but no activeTeamId set (stale row), picks the oldest
+ * team and pins it so we don't wander.
+ */
+export async function getActiveTeam(request: NextRequest) {
+  const userId = getUserId(request);
+  if (!userId) return null;
+  const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  if (!user) return null;
+
+  if (user.activeTeamId) {
+    const [team] = await db
+      .select()
+      .from(teams)
+      .where(and(eq(teams.id, user.activeTeamId), eq(teams.userId, userId)))
+      .limit(1);
+    if (team) return team;
+  }
+
+  // Fallback: pick the oldest team and pin it as active.
+  const [firstTeam] = await db
+    .select()
+    .from(teams)
+    .where(eq(teams.userId, userId))
+    .orderBy(teams.id)
+    .limit(1);
+  if (firstTeam) {
+    await db.update(users).set({ activeTeamId: firstTeam.id }).where(eq(users.id, userId));
+    return firstTeam;
+  }
+
+  return null;
 }
 
 export type OAuthStatePayload = {

@@ -17,6 +17,7 @@ import History from "@/components/History";
 import ConstraintsPanel from "@/components/ConstraintsPanel";
 import PracticePanel from "@/components/PracticePanel";
 import Onboarding from "@/components/Onboarding";
+import TeamSwitcher from "@/components/TeamSwitcher";
 import { RosterData } from "@/lib/types";
 
 type Tab = "roster" | "preview" | "history";
@@ -38,6 +39,8 @@ export default function Home() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
+  const [teams, setTeams] = useState<Array<{ id: number; name: string }>>([]);
+  const [activeTeamId, setActiveTeamId] = useState<number | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -68,7 +71,9 @@ export default function Home() {
           setUserStatus(authRes.user.status);
           setIsAdmin(authRes.user.role === "admin");
           setUserEmail(authRes.user.email);
+          setActiveTeamId(authRes.user.activeTeamId ?? null);
         }
+        if (Array.isArray(authRes?.teams)) setTeams(authRes.teams);
 
         // Clear absences on fresh session
         const players = (rosterRes?.players || []).map(
@@ -196,6 +201,36 @@ export default function Home() {
 
   const handleConfigChange = useCallback((newConfig: ConstraintConfig) => {
     setConfig(newConfig);
+  }, []);
+
+  const switchTeam = useCallback(async (teamId: number) => {
+    try {
+      const res = await fetch(`/api/teams/${teamId}`, { method: "POST" });
+      if (!res.ok) return;
+      // Full reload so all team-scoped data (roster, history, config) refetches
+      window.location.reload();
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const createTeam = useCallback(async (name: string) => {
+    try {
+      const res = await fetch("/api/teams", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        alert(data?.error || "Could not create team");
+        return;
+      }
+      // Newly-created team is auto-switched server-side; reload for a clean slate
+      window.location.reload();
+    } catch {
+      /* ignore */
+    }
   }, []);
 
   const handleOnboardingComplete = useCallback(
@@ -448,6 +483,14 @@ export default function Home() {
               {config.teamName}
             </button>
           )}
+          <TeamSwitcher
+            teams={teams}
+            activeTeamId={activeTeamId}
+            activeTeamName={config.teamName}
+            onSwitch={switchTeam}
+            onCreate={createTeam}
+            onOpenSettings={() => { window.location.href = "/settings"; }}
+          />
         </div>
         <div className="flex gap-1">
           {(["roster", "preview", "history"] as Tab[]).map((tab) => (

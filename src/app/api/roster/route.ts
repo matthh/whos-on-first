@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUserId, getUser } from "@/lib/auth";
+import { getUserId, getUser, getActiveTeam } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { rosters, users } from "@/lib/schema";
-import { eq } from "drizzle-orm";
+import { rosters, teams, users } from "@/lib/schema";
+import { and, eq } from "drizzle-orm";
 
 export async function GET(request: NextRequest) {
   const userId = getUserId(request);
@@ -13,11 +13,21 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Account not approved" }, { status: 403 });
   }
 
-  const [roster] = await db.select().from(rosters).where(eq(rosters.userId, userId)).limit(1);
+  const team = await getActiveTeam(request);
+  if (!team) {
+    // User has no team yet (pre-onboarding). Return empty shell.
+    return NextResponse.json({ players: [], config: null });
+  }
+
+  const [roster] = await db
+    .select()
+    .from(rosters)
+    .where(and(eq(rosters.userId, userId), eq(rosters.teamId, team.id)))
+    .limit(1);
 
   return NextResponse.json({
     players: roster?.players || [],
-    config: user?.constraintConfig || null,
+    config: team.constraintConfig || null,
   });
 }
 
@@ -37,7 +47,6 @@ export async function PUT(request: NextRequest) {
   const body = await request.json();
   const { players, config, coachName } = body;
 
-  // Validate players input
   if (players !== undefined) {
     if (!Array.isArray(players) || players.length > 20) {
       return NextResponse.json({ error: "Invalid players: must be an array with max 20 items" }, { status: 400 });
@@ -46,7 +55,6 @@ export async function PUT(request: NextRequest) {
       if (typeof p.id !== "string" || typeof p.name !== "string" || typeof p.rank !== "number" || typeof p.absent !== "boolean") {
         return NextResponse.json({ error: "Invalid player: each must have id (string), name (string), rank (number), absent (boolean)" }, { status: 400 });
       }
-      // Normalize optional fields
       if (p.recognized !== undefined && typeof p.recognized !== "boolean") {
         p.recognized = false;
       }
@@ -57,31 +65,61 @@ export async function PUT(request: NextRequest) {
     }
   }
 
-  // Validate config
   if (config !== undefined && (typeof config !== "object" || config === null || Array.isArray(config))) {
     return NextResponse.json({ error: "Invalid config: must be an object" }, { status: 400 });
   }
 
-  // Upsert roster
+  // Resolve active team, or create one lazily on first write during onboarding.
+  let team = await getActiveTeam(request);
+  if (!team) {
+    const desiredName =
+      (config && typeof config === "object" && typeof config.teamName === "string" && config.teamName.trim()) ||
+      "My Team";
+    const [created] = await db
+      .insert(teams)
+      .values({
+        userId,
+        name: desiredName,
+        logoDataUrl: config?.logoDataUrl ?? null,
+        constraintConfig: config ?? null,
+      })
+      .returning();
+    await db.update(users).set({ activeTeamId: created.id }).where(eq(users.id, userId));
+    team = created;
+  }
+
+  // Upsert roster for this team
   if (players !== undefined) {
-    const [existing] = await db.select().from(rosters).where(eq(rosters.userId, userId)).limit(1);
+    const [existing] = await db
+      .select()
+      .from(rosters)
+      .where(and(eq(rosters.userId, userId), eq(rosters.teamId, team.id)))
+      .limit(1);
     if (existing) {
       await db.update(rosters).set({ players, updatedAt: new Date() }).where(eq(rosters.id, existing.id));
     } else {
-      await db.insert(rosters).values({ userId, players });
+      await db.insert(rosters).values({ userId, teamId: team.id, players });
     }
   }
 
-  // Update user record
-  const userUpdates: Record<string, unknown> = {};
+  // Update team metadata (name, logo, constraint config)
+  const teamUpdates: Record<string, unknown> = {};
   if (config !== undefined) {
-    userUpdates.constraintConfig = config;
-    if (config.teamName !== undefined) userUpdates.teamName = config.teamName;
-    if (config.logoDataUrl !== undefined) userUpdates.logoDataUrl = config.logoDataUrl;
+    teamUpdates.constraintConfig = config;
+    if (typeof config?.teamName === "string" && config.teamName.trim()) {
+      teamUpdates.name = config.teamName.trim();
+    }
+    if (config?.logoDataUrl !== undefined) {
+      teamUpdates.logoDataUrl = config.logoDataUrl;
+    }
   }
-  if (coachName !== undefined) userUpdates.name = coachName;
-  if (Object.keys(userUpdates).length > 0) {
-    await db.update(users).set(userUpdates).where(eq(users.id, userId));
+  if (Object.keys(teamUpdates).length > 0) {
+    await db.update(teams).set(teamUpdates).where(eq(teams.id, team.id));
+  }
+
+  // Coach name is a user-level field, not team-level
+  if (coachName !== undefined) {
+    await db.update(users).set({ name: coachName }).where(eq(users.id, userId));
   }
 
   return NextResponse.json({ ok: true });
