@@ -14,7 +14,6 @@ import {
 import RosterList from "@/components/RosterList";
 import GameSheetPreview from "@/components/GameSheetPreview";
 import History from "@/components/History";
-import ConstraintsPanel from "@/components/ConstraintsPanel";
 import PracticePanel from "@/components/PracticePanel";
 import Onboarding from "@/components/Onboarding";
 import TeamSwitcher from "@/components/TeamSwitcher";
@@ -29,9 +28,6 @@ export default function Home() {
   const [violations, setViolations] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [config, setConfig] = useState<ConstraintConfig | null>(null);
-  const [editingTeamName, setEditingTeamName] = useState(false);
-  const [teamNameDraft, setTeamNameDraft] = useState("");
-  const [showConstraints, setShowConstraints] = useState(false);
   const [showPractice, setShowPractice] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -41,7 +37,6 @@ export default function Home() {
   const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
   const [teams, setTeams] = useState<Array<{ id: number; name: string }>>([]);
   const [activeTeamId, setActiveTeamId] = useState<number | null>(null);
-  const logoInputRef = useRef<HTMLInputElement>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Debounced save to DB
@@ -448,41 +443,7 @@ export default function Home() {
           {config.logoDataUrl && (
             <img src={config.logoDataUrl} alt="Team logo" className="w-6 h-6 object-contain" />
           )}
-          {editingTeamName ? (
-            <input
-              autoFocus
-              type="text"
-              value={teamNameDraft}
-              onChange={(e) => setTeamNameDraft(e.target.value)}
-              onBlur={() => {
-                const next = teamNameDraft.trim();
-                if (next && next !== config.teamName) {
-                  setConfig({ ...config, teamName: next });
-                }
-                setEditingTeamName(false);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                if (e.key === "Escape") {
-                  setTeamNameDraft(config.teamName);
-                  setEditingTeamName(false);
-                }
-              }}
-              className="text-sm font-bold text-[#002d62] bg-transparent border-b border-[#002d62]/40 focus:outline-none focus:border-[#002d62] px-0.5 w-40"
-            />
-          ) : (
-            <button
-              type="button"
-              onClick={() => {
-                setTeamNameDraft(config.teamName);
-                setEditingTeamName(true);
-              }}
-              title="Click to rename team"
-              className="text-sm font-bold text-[#002d62] hover:underline"
-            >
-              {config.teamName}
-            </button>
-          )}
+          <span className="text-sm font-bold text-[#002d62]">{config.teamName}</span>
           <TeamSwitcher
             teams={teams}
             activeTeamId={activeTeamId}
@@ -491,6 +452,13 @@ export default function Home() {
             onCreate={createTeam}
             onOpenSettings={() => { window.location.href = "/settings"; }}
           />
+          <a
+            href="/settings"
+            className="text-xs text-gray-500 hover:text-[#002d62] hover:underline ml-1"
+            title="Edit team name, logo, and game rules"
+          >
+            ⚙ Settings
+          </a>
         </div>
         <div className="flex gap-1">
           {(["roster", "preview", "history"] as Tab[]).map((tab) => (
@@ -563,28 +531,15 @@ export default function Home() {
             </>
           )}
 
-          {/* Constraints & Practice — below generate button */}
+          {/* Practice Plan — below generate button. Game rules moved to /settings. */}
           <div className="flex gap-3">
             <button
-              onClick={() => { setShowConstraints(!showConstraints); setShowPractice(false); }}
-              className="text-xs text-gray-400 hover:text-[#002d62] transition-colors"
-            >
-              {showConstraints ? "Hide" : "View"} Game Rules
-            </button>
-            <button
-              onClick={() => { setShowPractice(!showPractice); setShowConstraints(false); }}
+              onClick={() => { setShowPractice(!showPractice); }}
               className="text-xs text-gray-400 hover:text-[#002d62] transition-colors"
             >
               {showPractice ? "Hide" : "Create"} Practice Plan
             </button>
           </div>
-          {showConstraints && (
-            <ConstraintsPanel
-              config={config}
-              onChange={handleConfigChange}
-              onClose={() => setShowConstraints(false)}
-            />
-          )}
           {showPractice && (
             <PracticePanel
               config={config}
