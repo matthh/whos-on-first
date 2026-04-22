@@ -526,20 +526,18 @@ export default function Home() {
                     : "bg-gray-300 cursor-not-allowed"
                 }`}
               >
-                {generating ? "Generating..." : "Generate Game Sheet"}
+                {generating ? "Generating..." : "Generate Roster"}
               </button>
             </>
           )}
 
-          {/* Practice Plan — below generate button. Game rules moved to /settings. */}
-          <div className="flex gap-3">
-            <button
-              onClick={() => { setShowPractice(!showPractice); }}
-              className="text-xs text-gray-400 hover:text-[#002d62] transition-colors"
-            >
-              {showPractice ? "Hide" : "Create"} Practice Plan
-            </button>
-          </div>
+          {/* Practice Plan — primary action, same visual weight as Generate Roster */}
+          <button
+            onClick={() => { setShowPractice(!showPractice); }}
+            className="w-full py-3 rounded-lg font-bold text-white text-sm transition-colors bg-[#002d62] hover:bg-[#003d82] active:bg-[#001d42]"
+          >
+            {showPractice ? "Hide Practice Plan" : "Create Practice Plan"}
+          </button>
           {showPractice && (
             <PracticePanel
               config={config}
