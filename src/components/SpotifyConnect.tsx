@@ -2,6 +2,54 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+function SyncPlaylistButton() {
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ kind: "ok" | "err"; msg: string; url?: string } | null>(null);
+
+  const sync = async () => {
+    setBusy(true);
+    setResult(null);
+    try {
+      const res = await fetch("/api/spotify/sync-playlist", { method: "POST" });
+      const data = await res.json();
+      if (data.ok) {
+        const skipped = data.skipped ? ` (${data.skipped} player${data.skipped === 1 ? "" : "s"} without a song)` : "";
+        setResult({ kind: "ok", msg: `Synced ${data.trackCount} song${data.trackCount === 1 ? "" : "s"}${skipped}.`, url: data.playlistUrl });
+      } else {
+        setResult({ kind: "err", msg: data.reason ? `Sync failed: ${data.reason}` : "Sync failed." });
+      }
+    } catch {
+      setResult({ kind: "err", msg: "Sync failed." });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-3 pt-2 border-t border-gray-100 mt-2">
+      <div className="flex-1 text-xs text-gray-500">
+        Build the team playlist now from current rosters and walk-on songs.
+      </div>
+      <button
+        type="button"
+        onClick={sync}
+        disabled={busy}
+        className="text-xs font-medium text-white bg-[#1DB954] hover:bg-[#1aa84a] rounded px-3 py-1.5 whitespace-nowrap disabled:opacity-50"
+      >
+        {busy ? "Syncing…" : "Sync playlist now"}
+      </button>
+      {result && (
+        <div className={`text-[11px] w-full mt-1 ${result.kind === "ok" ? "text-emerald-700" : "text-red-600"}`}>
+          {result.msg}
+          {result.url && (
+            <> · <a href={result.url} target="_blank" rel="noreferrer" className="underline">Open</a></>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface SpotifyStatus {
   configured: boolean;
   connected: boolean;
@@ -74,24 +122,27 @@ export default function SpotifyConnect() {
         </div>
       )}
       {status.connected ? (
-        <div className="flex items-center gap-3">
-          <div className="flex-1">
-            <div className="text-sm font-medium text-gray-800">
-              Connected{status.displayName ? ` as ${status.displayName}` : ""}
+        <>
+          <div className="flex items-center gap-3">
+            <div className="flex-1">
+              <div className="text-sm font-medium text-gray-800">
+                Connected{status.displayName ? ` as ${status.displayName}` : ""}
+              </div>
+              <div className="text-xs text-gray-500">
+                Walk-on playlists will be created in this Spotify account.
+              </div>
             </div>
-            <div className="text-xs text-gray-500">
-              Walk-on playlists will be created in this Spotify account.
-            </div>
+            <button
+              type="button"
+              onClick={disconnect}
+              disabled={busy}
+              className="text-xs text-red-600 hover:underline disabled:opacity-50"
+            >
+              Disconnect
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={disconnect}
-            disabled={busy}
-            className="text-xs text-red-600 hover:underline disabled:opacity-50"
-          >
-            Disconnect
-          </button>
-        </div>
+          <SyncPlaylistButton />
+        </>
       ) : (
         <div className="flex items-center gap-3">
           <div className="flex-1">

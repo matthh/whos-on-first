@@ -307,6 +307,11 @@ export default function Home() {
           setViolations(v);
 
           if (saveHistory) {
+            // Fire-and-forget Spotify playlist sync. Soft-fails — never
+            // blocks roster generation. Server route handles the
+            // not-connected case gracefully.
+            fetch("/api/spotify/sync-playlist", { method: "POST" }).catch(() => {});
+
             const today = new Date().toLocaleDateString("en-US", {
               weekday: "short",
               month: "short",
