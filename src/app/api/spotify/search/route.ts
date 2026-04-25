@@ -47,7 +47,12 @@ export async function GET(request: NextRequest) {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) {
-    return NextResponse.json({ error: `Spotify search failed (${res.status})`, tracks: [] }, { status: 502 });
+    const body = await res.text().catch(() => "");
+    console.error(`[spotify/search] ${res.status}: ${body.slice(0, 400)}`);
+    return NextResponse.json(
+      { error: `Spotify search failed (${res.status}): ${body.slice(0, 200)}`, tracks: [] },
+      { status: 502 },
+    );
   }
   const data = (await res.json()) as SpotifySearchResponse;
   const tracks = (data.tracks?.items ?? []).map((t) => {
