@@ -29,7 +29,10 @@ export async function GET(request: NextRequest) {
     response_type: "code",
     scope: SPOTIFY_SCOPES,
     state,
-    show_dialog: "false",
+    // Always show the consent screen so users actually see (and re-grant)
+    // playlist scopes if they ever change. Cheap insurance against silent
+    // scope-mismatch failures on /api/spotify/sync-playlist.
+    show_dialog: "true",
   });
 
   const response = NextResponse.redirect(`${SPOTIFY_AUTHORIZE_URL}?${params.toString()}`);
