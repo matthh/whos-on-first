@@ -203,6 +203,22 @@ export default function Home() {
     [updatePlayers]
   );
 
+  const handleSetWalkOnSong = useCallback(
+    (id: string, song: import("@/lib/types").WalkOnSong | null) => {
+      updatePlayers((players) =>
+        players.map((p) => {
+          if (p.id !== id) return p;
+          if (song) return { ...p, walkOnSong: song };
+          // Removing — drop the field
+          const next = { ...p } as typeof p;
+          delete (next as { walkOnSong?: unknown }).walkOnSong;
+          return next;
+        })
+      );
+    },
+    [updatePlayers]
+  );
+
   const handleConfigChange = useCallback((newConfig: ConstraintConfig) => {
     setConfig(newConfig);
   }, []);
@@ -524,6 +540,7 @@ export default function Home() {
                 onAddPlayer={handleAddPlayer}
                 onRemovePlayer={handleRemovePlayer}
                 onSetAvoidPositions={handleSetAvoidPositions}
+                onSetWalkOnSong={handleSetWalkOnSong}
                 focusPlayerId={focusPlayerId}
                 restrictions={config.restrictions}
                 trackRecognition={config.trackRecognition}

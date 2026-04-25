@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Player } from "@/lib/types";
+import { Player, WalkOnSong } from "@/lib/types";
 import { PositionRestriction } from "@/lib/constraints";
+import PlayerEditModal from "./PlayerEditModal";
 import {
   DndContext,
   closestCenter,
@@ -39,9 +40,6 @@ function buildColorMap(restrictions: PositionRestriction[]): Map<number, number>
   return map;
 }
 
-/** Positions shown in the per-player "avoid" panel, in baseball card order. */
-const AVOIDABLE_POSITIONS = ["P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF", "Rover"];
-
 interface RosterListProps {
   players: Player[];
   onReorder: (players: Player[]) => void;
@@ -51,6 +49,7 @@ interface RosterListProps {
   onAddPlayer: () => void;
   onRemovePlayer: (id: string) => void;
   onSetAvoidPositions?: (id: string, positions: string[]) => void;
+  onSetWalkOnSong?: (id: string, song: WalkOnSong | null) => void;
   /** ID of player whose name input should be focused */
   focusPlayerId?: string | null;
   trackRecognition?: boolean;
@@ -68,7 +67,7 @@ function SortablePlayer({
   onRename,
   onRemovePlayer,
   onToggleRecognized,
-  onSetAvoidPositions,
+  onOpenEdit,
   onEnter,
   canRemove,
   shouldFocus,
@@ -76,13 +75,14 @@ function SortablePlayer({
   colorMap,
   effectiveRank,
   trackRecognition,
+  showEditButton,
 }: {
   player: Player;
   onToggleAbsent: (id: string) => void;
   onRename: (id: string, name: string) => void;
   onRemovePlayer: (id: string) => void;
   onToggleRecognized: (id: string) => void;
-  onSetAvoidPositions?: (id: string, positions: string[]) => void;
+  onOpenEdit?: (id: string) => void;
   onEnter: () => void;
   canRemove: boolean;
   shouldFocus: boolean;
@@ -90,17 +90,13 @@ function SortablePlayer({
   colorMap: Map<number, number>;
   trackRecognition: boolean;
   effectiveRank: number;
+  showEditButton: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: player.id });
   const inputRef = useRef<HTMLInputElement>(null);
-  const [expanded, setExpanded] = useState(false);
   const avoid = player.avoidPositions || [];
-  const toggleAvoid = (pos: string) => {
-    if (!onSetAvoidPositions) return;
-    const next = avoid.includes(pos) ? avoid.filter(p => p !== pos) : [...avoid, pos];
-    onSetAvoidPositions(player.id, next);
-  };
+  const hasWalkOn = !!player.walkOnSong;
 
   useEffect(() => {
     if (shouldFocus && inputRef.current) {
@@ -121,13 +117,12 @@ function SortablePlayer({
     <div
       ref={setNodeRef}
       style={style}
-      className={`rounded-lg border transition-colors ${
+      className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors ${
         player.absent
           ? "bg-gray-100 border-gray-200 opacity-60"
           : "bg-white border-gray-300 hover:border-blue-400"
       } ${isDragging ? "shadow-lg z-10" : ""}`}
     >
-    <div className="flex items-center gap-2 px-3 py-2">
       {/* Drag handle */}
       <button
         {...attributes}
@@ -217,18 +212,20 @@ function SortablePlayer({
         {player.absent ? "Absent" : "Present"}
       </button>
 
-      {/* Expand button */}
-      {onSetAvoidPositions && (
+      {/* Edit button — opens player detail modal */}
+      {showEditButton && onOpenEdit && (
         <button
-          onClick={() => setExpanded(!expanded)}
-          className={`text-xs px-1.5 py-1 rounded transition-colors ${
-            avoid.length > 0
-              ? "bg-rose-50 text-rose-600 hover:bg-rose-100"
-              : "bg-gray-100 text-gray-400 hover:bg-gray-200"
+          onClick={() => onOpenEdit(player.id)}
+          className={`text-xs px-1.5 py-1 rounded transition-colors flex items-center gap-1 ${
+            avoid.length > 0 || hasWalkOn
+              ? "bg-blue-50 text-blue-700 hover:bg-blue-100"
+              : "bg-gray-100 text-gray-500 hover:bg-gray-200"
           }`}
-          title={avoid.length > 0 ? `Avoiding: ${avoid.join(", ")}` : "Set position preferences"}
+          title="Edit player details"
         >
-          {expanded ? "▾" : "▸"}{avoid.length > 0 && <span className="ml-1 font-bold">{avoid.length}</span>}
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+          {hasWalkOn && <span title="Walk-on song set">♪</span>}
+          {avoid.length > 0 && <span className="font-bold" title={`Avoiding: ${avoid.join(", ")}`}>{avoid.length}</span>}
         </button>
       )}
 
@@ -250,37 +247,6 @@ function SortablePlayer({
         </button>
       )}
     </div>
-
-    {/* Expanded preferences panel */}
-    {expanded && onSetAvoidPositions && (
-      <div className="px-3 pb-2 border-t border-gray-100">
-        <div className="mt-2 text-[11px] uppercase tracking-wider text-gray-500 font-semibold">
-          Prefer not to play
-        </div>
-        <div className="mt-1.5 flex flex-wrap gap-1">
-          {AVOIDABLE_POSITIONS.map((pos) => {
-            const active = avoid.includes(pos);
-            return (
-              <button
-                key={pos}
-                onClick={() => toggleAvoid(pos)}
-                className={`text-[11px] font-bold px-2 py-0.5 rounded transition-colors ${
-                  active
-                    ? "bg-rose-500 text-white hover:bg-rose-600"
-                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                }`}
-              >
-                {pos}
-              </button>
-            );
-          })}
-        </div>
-        <div className="mt-1.5 text-[10px] text-gray-400">
-          Soft preference — applied only if it doesn't impact other players or league rules.
-        </div>
-      </div>
-    )}
-    </div>
   );
 }
 
@@ -293,12 +259,15 @@ export default function RosterList({
   onAddPlayer,
   onRemovePlayer,
   onSetAvoidPositions,
+  onSetWalkOnSong,
   focusPlayerId,
   hideAddButton,
   maxPlayers = 13,
   restrictions = [],
   trackRecognition = false,
 }: RosterListProps) {
+  const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
+  const showEditButton = !!(onSetAvoidPositions || onSetWalkOnSong);
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
@@ -384,7 +353,8 @@ export default function RosterList({
                 onToggleRecognized={onToggleRecognized || (() => {})}
                 onRename={onRename}
                 onRemovePlayer={onRemovePlayer}
-                onSetAvoidPositions={onSetAvoidPositions}
+                onOpenEdit={(id) => setEditingPlayerId(id)}
+                showEditButton={showEditButton}
                 onEnter={() => {
                   if (sorted.length < maxPlayers) {
                     onAddPlayer();
@@ -410,6 +380,20 @@ export default function RosterList({
           + Add Player
         </button>
       )}
+
+      {editingPlayerId && (() => {
+        const editing = sorted.find((p) => p.id === editingPlayerId);
+        if (!editing) return null;
+        return (
+          <PlayerEditModal
+            player={editing}
+            onClose={() => setEditingPlayerId(null)}
+            onRename={onRename}
+            onSetAvoidPositions={onSetAvoidPositions || (() => {})}
+            onSetWalkOnSong={onSetWalkOnSong || (() => {})}
+          />
+        );
+      })()}
     </div>
   );
 }

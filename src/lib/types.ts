@@ -11,6 +11,21 @@ export interface Player {
    * defensive optimization). Enforced via a post-pass swap attempt only.
    */
   avoidPositions?: string[];
+  /** Spotify walk-on song. Used to assemble the team playlist on roster generate. */
+  walkOnSong?: WalkOnSong;
+}
+
+export interface WalkOnSong {
+  /** Spotify track id, e.g. "3n3Ppam7vgaVa1iaRUc9Lp" */
+  spotifyId: string;
+  /** Spotify URI, e.g. "spotify:track:3n3Ppam7vgaVa1iaRUc9Lp" — used for playlist add */
+  uri: string;
+  title: string;
+  artist: string;
+  /** Small album art (~64px) URL, may be null */
+  albumArtUrl: string | null;
+  /** 30-second preview mp3 URL, may be null since Spotify reduced preview coverage in late 2024 */
+  previewUrl: string | null;
 }
 
 export type Position = string;
