@@ -128,7 +128,10 @@ export async function POST(request: NextRequest): Promise<NextResponse<SyncResul
     if (!createRes.ok) {
       const body = await createRes.text().catch(() => "");
       console.error(`[spotify/sync] create playlist failed ${createRes.status}: ${body.slice(0, 300)}`);
-      return NextResponse.json({ ok: false, reason: `create_failed_${createRes.status}` });
+      return NextResponse.json({
+        ok: false,
+        reason: `create_failed_${createRes.status}: ${body.slice(0, 200)}`,
+      });
     }
     const created = (await createRes.json()) as { id: string };
     playlistId = created.id;

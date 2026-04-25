@@ -28,20 +28,22 @@ function SyncPlaylistButton() {
   };
 
   return (
-    <div className="flex items-center gap-3 pt-2 border-t border-gray-100 mt-2">
-      <div className="flex-1 text-xs text-gray-500">
-        Build the team playlist now from current rosters and walk-on songs.
+    <div className="pt-2 border-t border-gray-100 mt-2">
+      <div className="flex items-center gap-3">
+        <div className="flex-1 min-w-0 text-xs text-gray-500">
+          Build the team playlist now from current rosters and walk-on songs.
+        </div>
+        <button
+          type="button"
+          onClick={sync}
+          disabled={busy}
+          className="flex-shrink-0 text-xs font-medium text-white bg-[#1DB954] hover:bg-[#1aa84a] rounded px-3 py-1.5 whitespace-nowrap disabled:opacity-50"
+        >
+          {busy ? "Syncing…" : "Sync playlist now"}
+        </button>
       </div>
-      <button
-        type="button"
-        onClick={sync}
-        disabled={busy}
-        className="text-xs font-medium text-white bg-[#1DB954] hover:bg-[#1aa84a] rounded px-3 py-1.5 whitespace-nowrap disabled:opacity-50"
-      >
-        {busy ? "Syncing…" : "Sync playlist now"}
-      </button>
       {result && (
-        <div className={`text-[11px] w-full mt-1 ${result.kind === "ok" ? "text-emerald-700" : "text-red-600"}`}>
+        <div className={`text-[11px] mt-2 ${result.kind === "ok" ? "text-emerald-700" : "text-red-600"}`}>
           {result.msg}
           {result.url && (
             <> · <a href={result.url} target="_blank" rel="noreferrer" className="underline">Open</a></>
