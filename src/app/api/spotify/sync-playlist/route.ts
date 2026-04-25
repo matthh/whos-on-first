@@ -115,6 +115,23 @@ export async function POST(request: NextRequest): Promise<NextResponse<SyncResul
   }
 
   if (!playlistId) {
+    // Probe a low-privilege playlist read first — if THIS 403s, the token
+    // doesn't have playlist-read-private scope (so the connect grant didn't
+    // include the playlist scopes we asked for, despite show_dialog=true).
+    // If the read works but the create still 403s, the token has the scope
+    // but the Spotify account isn't authorized to create playlists for this
+    // app — almost always the dev-mode User Management list.
+    const probeRes = await fetch(`${SPOTIFY_API_BASE}/me/playlists?limit=1`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!probeRes.ok) {
+      const body = await probeRes.text().catch(() => "");
+      return NextResponse.json({
+        ok: false,
+        reason: `scope_probe_failed_${probeRes.status}: ${body.slice(0, 200)} — try Disconnect + Connect Spotify and re-grant playlist scopes on the consent screen`,
+      });
+    }
+
     const createRes = await fetch(`${SPOTIFY_API_BASE}/users/${spotifyUserId}/playlists`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
