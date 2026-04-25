@@ -3,8 +3,8 @@ import { getUserId, getActiveTeam } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { rosters, teams, users } from "@/lib/schema";
 import { and, eq } from "drizzle-orm";
-import { getValidAccessToken, SPOTIFY_API_BASE } from "@/lib/spotify";
-import type { Player } from "@/lib/types";
+import { getValidAccessToken, SPOTIFY_API_BASE, DEFAULT_WALK_UP_SONGS, findCleanTrack } from "@/lib/spotify";
+import type { Player, WalkOnSong } from "@/lib/types";
 
 interface SyncResult {
   ok: boolean;
@@ -12,7 +12,10 @@ interface SyncResult {
   playlistId?: string;
   playlistUrl?: string;
   trackCount?: number;
-  skipped?: number; // present players with no walk-on song
+  /** present players whose missing songs got auto-assigned a default */
+  defaulted?: number;
+  /** present players we couldn't find any song for (default search came up empty) */
+  skipped?: number;
 }
 
 /**
@@ -44,11 +47,57 @@ export async function POST(request: NextRequest): Promise<NextResponse<SyncResul
 
   const players = (roster?.players as Player[] | undefined) ?? [];
   const present = [...players].filter(p => !p.absent).sort((a, b) => a.rank - b.rank);
-  const trackUris: string[] = [];
+
+  // Auto-fill defaults for any present player without a song. Avoid duplicates
+  // both with already-picked songs and across the rotation. Pull from
+  // DEFAULT_WALK_UP_SONGS in a fresh shuffle each sync so teams that never
+  // pick songs still get a varied playlist over time.
+  const usedSpotifyIds = new Set<string>();
+  for (const p of present) if (p.walkOnSong?.spotifyId) usedSpotifyIds.add(p.walkOnSong.spotifyId);
+
+  const defaultPool = [...DEFAULT_WALK_UP_SONGS].sort(() => Math.random() - 0.5);
+  let defaultIdx = 0;
+  let defaulted = 0;
   let skipped = 0;
+  let rosterMutated = false;
+  const updatedPlayers = [...players];
+
   for (const p of present) {
-    if (p.walkOnSong?.uri) trackUris.push(p.walkOnSong.uri);
-    else skipped++;
+    if (p.walkOnSong?.uri) continue;
+    // Try the rotation, skipping any whose resolved track is already used.
+    let assigned: WalkOnSong | null = null;
+    for (let attempt = 0; attempt < defaultPool.length && !assigned; attempt++) {
+      const candidate = defaultPool[(defaultIdx + attempt) % defaultPool.length];
+      const found = await findCleanTrack(token, candidate.title, candidate.artist);
+      if (!found) continue;
+      if (usedSpotifyIds.has(found.spotifyId)) continue;
+      assigned = { ...found, isDefaultPick: true };
+      defaultIdx = (defaultIdx + attempt + 1) % defaultPool.length;
+    }
+    if (!assigned) {
+      skipped++;
+      continue;
+    }
+    usedSpotifyIds.add(assigned.spotifyId);
+    defaulted++;
+    rosterMutated = true;
+    // Mutate the player in the rosterPlayers copy so we persist back.
+    const playerIdx = updatedPlayers.findIndex((x) => x.id === p.id);
+    if (playerIdx >= 0) updatedPlayers[playerIdx] = { ...updatedPlayers[playerIdx], walkOnSong: assigned };
+  }
+
+  if (rosterMutated && roster) {
+    await db
+      .update(rosters)
+      .set({ players: updatedPlayers })
+      .where(and(eq(rosters.userId, userId), eq(rosters.teamId, team.id)));
+  }
+
+  // Now build trackUris in batting order from the (possibly updated) list.
+  const trackUris: string[] = [];
+  for (const p of present) {
+    const updated = updatedPlayers.find((x) => x.id === p.id) ?? p;
+    if (updated.walkOnSong?.uri) trackUris.push(updated.walkOnSong.uri);
   }
 
   const playlistName = `${team.name} Walk On Music`;
@@ -112,6 +161,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<SyncResul
     playlistId,
     playlistUrl: `https://open.spotify.com/playlist/${playlistId}`,
     trackCount: trackUris.length,
+    defaulted,
     skipped,
   });
 }

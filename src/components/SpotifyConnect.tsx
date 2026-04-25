@@ -13,8 +13,10 @@ function SyncPlaylistButton() {
       const res = await fetch("/api/spotify/sync-playlist", { method: "POST" });
       const data = await res.json();
       if (data.ok) {
-        const skipped = data.skipped ? ` (${data.skipped} player${data.skipped === 1 ? "" : "s"} without a song)` : "";
-        setResult({ kind: "ok", msg: `Synced ${data.trackCount} song${data.trackCount === 1 ? "" : "s"}${skipped}.`, url: data.playlistUrl });
+        const parts: string[] = [`Synced ${data.trackCount} song${data.trackCount === 1 ? "" : "s"}`];
+        if (data.defaulted) parts.push(`${data.defaulted} default-picked`);
+        if (data.skipped) parts.push(`${data.skipped} skipped`);
+        setResult({ kind: "ok", msg: parts.join(", ") + ".", url: data.playlistUrl });
       } else {
         setResult({ kind: "err", msg: data.reason ? `Sync failed: ${data.reason}` : "Sync failed." });
       }

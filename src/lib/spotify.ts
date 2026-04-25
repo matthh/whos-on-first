@@ -134,3 +134,73 @@ export async function fetchSpotifyMe(accessToken: string): Promise<SpotifyMe | n
   if (!res.ok) return null;
   return res.json() as Promise<SpotifyMe>;
 }
+
+/**
+ * Curated rotation of clean, beloved walk-up classics. Used as a fallback
+ * when a player hasn't picked a song yet so the team playlist still has
+ * something for everyone. We resolve each entry to a real Spotify track
+ * at sync time (preferring non-explicit), so picks adjust to whatever
+ * versions Spotify currently surfaces in the coach's market.
+ */
+export const DEFAULT_WALK_UP_SONGS: { title: string; artist: string }[] = [
+  { title: "Welcome to the Jungle", artist: "Guns N' Roses" },
+  { title: "Eye of the Tiger", artist: "Survivor" },
+  { title: "We Will Rock You", artist: "Queen" },
+  { title: "Enter Sandman", artist: "Metallica" },
+  { title: "Thunderstruck", artist: "AC/DC" },
+  { title: "Centerfield", artist: "John Fogerty" },
+  { title: "Crazy Train", artist: "Ozzy Osbourne" },
+  { title: "Sweet Caroline", artist: "Neil Diamond" },
+  { title: "Don't Stop Believin'", artist: "Journey" },
+  { title: "All Star", artist: "Smash Mouth" },
+  { title: "Jump", artist: "Van Halen" },
+  { title: "The Final Countdown", artist: "Europe" },
+  { title: "Livin' on a Prayer", artist: "Bon Jovi" },
+  { title: "Born in the U.S.A.", artist: "Bruce Springsteen" },
+  { title: "Hells Bells", artist: "AC/DC" },
+];
+
+interface SpotifyTrackResult {
+  id: string;
+  uri: string;
+  name: string;
+  artists: { name: string }[];
+  album: { images: { url: string; width: number; height: number }[] };
+  preview_url: string | null;
+  explicit: boolean;
+}
+
+/**
+ * Find a clean version of a track by title + artist. Prefers non-explicit
+ * results. Returns a WalkOnSong-compatible payload (without isDefaultPick)
+ * or null if nothing matches.
+ */
+export async function findCleanTrack(
+  accessToken: string,
+  title: string,
+  artist: string,
+): Promise<{ spotifyId: string; uri: string; title: string; artist: string; albumArtUrl: string | null; previewUrl: string | null } | null> {
+  const params = new URLSearchParams();
+  params.set("q", `track:"${title}" artist:"${artist}"`);
+  params.set("type", "track");
+  params.set("limit", "5");
+  const res = await fetch(`${SPOTIFY_API_BASE}/search?${params}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) return null;
+  const data = (await res.json()) as { tracks?: { items?: SpotifyTrackResult[] } };
+  const items = data.tracks?.items ?? [];
+  if (items.length === 0) return null;
+  const pick = items.find((t) => !t.explicit) ?? items[0];
+  const imgs = pick.album?.images ?? [];
+  const sorted = [...imgs].sort((a, b) => a.width - b.width);
+  const small = sorted.find((i) => i.width >= 64) ?? sorted[sorted.length - 1] ?? null;
+  return {
+    spotifyId: pick.id,
+    uri: pick.uri,
+    title: pick.name,
+    artist: pick.artists.map((a) => a.name).join(", "),
+    albumArtUrl: small?.url ?? null,
+    previewUrl: pick.preview_url ?? null,
+  };
+}

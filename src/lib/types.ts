@@ -26,6 +26,12 @@ export interface WalkOnSong {
   albumArtUrl: string | null;
   /** 30-second preview mp3 URL, may be null since Spotify reduced preview coverage in late 2024 */
   previewUrl: string | null;
+  /**
+   * True when this song was auto-assigned by the playlist sync because the
+   * coach hadn't picked one yet. Cleared as soon as the coach explicitly
+   * picks a song via search.
+   */
+  isDefaultPick?: boolean;
 }
 
 export type Position = string;

@@ -213,7 +213,14 @@ export default function PlayerEditModal({
                       <div className="w-12 h-12 rounded bg-gray-200 flex items-center justify-center text-gray-400 text-xl flex-shrink-0">♪</div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-gray-800 truncate" title={song.title}>{song.title}</div>
+                      <div className="flex items-center gap-2">
+                        <div className="text-sm font-medium text-gray-800 truncate" title={song.title}>{song.title}</div>
+                        {song.isDefaultPick && (
+                          <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 flex-shrink-0" title="Auto-assigned. Search to pick your own.">
+                            Default
+                          </span>
+                        )}
+                      </div>
                       <div className="text-xs text-gray-500 truncate" title={song.artist}>{song.artist}</div>
                     </div>
                     {song.previewUrl && (
