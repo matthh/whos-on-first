@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import ConstraintsPanel from "@/components/ConstraintsPanel";
+import SpotifyConnect from "@/components/SpotifyConnect";
 import { ConstraintConfig, DEFAULT_CONFIG, migrateRestrictions } from "@/lib/constraints";
 
 type Team = { id: number; name: string; createdAt?: string };
@@ -271,6 +272,12 @@ export default function SettingsPage() {
             <p className="text-[11px] text-gray-400 mt-1">Max 2MB. PNG with transparent background works best.</p>
           </div>
         </div>
+      </section>
+
+      {/* Spotify integration */}
+      <section>
+        <h2 className="text-lg font-semibold mb-3">Spotify</h2>
+        <SpotifyConnect />
       </section>
 
       {/* Teams list */}
