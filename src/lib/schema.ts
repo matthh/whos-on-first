@@ -15,6 +15,7 @@ export const users = pgTable("users", {
   constraintConfig: json("constraint_config"),
   activeTeamId: integer("active_team_id"),
   createdAt: timestamp("created_at").defaultNow(),
+  lastLoginAt: timestamp("last_login_at"),
 });
 
 export const teams = pgTable("teams", {

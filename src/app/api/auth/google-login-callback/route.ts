@@ -146,6 +146,8 @@ export async function GET(request: NextRequest) {
       return redirectWithStateCleared(loginUrl);
     }
 
+    await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
+
     // Send notifications for new signups
     if (isNewUser) {
       await sendNewSignupNotification(name, email, "Google");

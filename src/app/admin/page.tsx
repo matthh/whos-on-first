@@ -10,6 +10,18 @@ interface User {
   status: string;
   authProvider: string | null;
   createdAt: string;
+  lastLoginAt: string | null;
+}
+
+function formatLastLogin(iso: string | null): string {
+  if (!iso) return "—";
+  const ms = Date.now() - new Date(iso).getTime();
+  const day = 24 * 60 * 60 * 1000;
+  if (ms < 60 * 1000) return "just now";
+  if (ms < 60 * 60 * 1000) return `${Math.floor(ms / (60 * 1000))}m ago`;
+  if (ms < day) return `${Math.floor(ms / (60 * 60 * 1000))}h ago`;
+  if (ms < 7 * day) return `${Math.floor(ms / day)}d ago`;
+  return new Date(iso).toLocaleDateString();
 }
 
 export default function AdminPage() {
@@ -173,6 +185,7 @@ export default function AdminPage() {
               <th className="px-4 py-2 text-center font-medium">Status</th>
               <th className="px-4 py-2 text-center font-medium">Auth</th>
               <th className="px-4 py-2 text-center font-medium">Joined</th>
+              <th className="px-4 py-2 text-center font-medium">Login</th>
               <th className="px-4 py-2 text-right font-medium">Actions</th>
             </tr>
           </thead>
@@ -231,6 +244,12 @@ export default function AdminPage() {
                 </td>
                 <td className="px-4 py-2.5 text-center text-gray-400 text-xs">
                   {new Date(user.createdAt).toLocaleDateString()}
+                </td>
+                <td
+                  className="px-4 py-2.5 text-center text-gray-400 text-xs"
+                  title={user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : "Never"}
+                >
+                  {formatLastLogin(user.lastLoginAt)}
                 </td>
                 <td className="px-4 py-2.5 text-right">
                   <div className="flex items-center justify-end gap-1">
