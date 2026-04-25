@@ -4,6 +4,13 @@ export interface Player {
   rank: number; // 1 = best, higher = weaker
   absent: boolean;
   recognized?: boolean; // player has been recognized this season
+  /**
+   * Soft preferences — positions this player would rather not play.
+   * The scheduler may still assign them here if respecting the preference
+   * would require breaking other constraints (fairness, eligibility,
+   * defensive optimization). Enforced via a post-pass swap attempt only.
+   */
+  avoidPositions?: string[];
 }
 
 export type Position = string;

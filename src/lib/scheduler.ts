@@ -699,3 +699,61 @@ export function validateGameSheet(
 
   return v;
 }
+
+// ── Avoid-position post-pass ────────────────────────────────────────
+//
+// Soft preferences only. We never break an existing constraint to honor an
+// avoid preference. Algorithm: for each (player, inning) where the player
+// is currently at one of their avoided positions, try swapping with every
+// other player in that inning. Keep the swap iff:
+//   1. The resulting sheet still validates (no new violations).
+//   2. The counterpart player isn't being moved INTO one of THEIR avoid
+//      positions (don't trade one violation for another).
+//   3. The counterpart's current spot is not also avoided by the original
+//      player (avoid swapping into the same problem).
+//
+// Greedy single pass — keeps it simple and predictable.
+export function applyAvoidPositionsPostPass(
+  sheet: GameSheet,
+  presentPlayers: Player[],
+  config: ConstraintConfig = DEFAULT_CONFIG
+): GameSheet {
+  const innings = config.innings;
+  const playersById = new Map(presentPlayers.map(p => [p.id, p]));
+  const next: GameSheet = sheet.map(inning => ({ ...inning }));
+
+  for (let i = 0; i < innings; i++) {
+    for (const player of presentPlayers) {
+      const avoid = player.avoidPositions;
+      if (!avoid || avoid.length === 0) continue;
+      const myPos = next[i][player.id];
+      if (!myPos || myPos === "Bench" || !avoid.includes(myPos)) continue;
+
+      // Look for a swap candidate in the same inning
+      for (const otherId of Object.keys(next[i])) {
+        if (otherId === player.id) continue;
+        const other = playersById.get(otherId);
+        if (!other) continue;
+        const theirPos = next[i][otherId];
+        if (!theirPos || theirPos === "Bench") continue;
+        // Don't swap into a position the original player also avoids.
+        if (avoid.includes(theirPos)) continue;
+        // Don't move the counterpart into one of THEIR avoid positions.
+        if (other.avoidPositions?.includes(myPos)) continue;
+
+        // Try the swap
+        next[i][player.id] = theirPos;
+        next[i][otherId] = myPos;
+        const violations = validateGameSheet(next, presentPlayers, config);
+        if (violations.length === 0) {
+          break; // keep swap, move on to next player/inning
+        }
+        // Revert
+        next[i][player.id] = myPos;
+        next[i][otherId] = theirPos;
+      }
+    }
+  }
+
+  return next;
+}

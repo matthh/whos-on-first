@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Player } from "@/lib/types";
 import { PositionRestriction } from "@/lib/constraints";
 import {
@@ -39,6 +39,9 @@ function buildColorMap(restrictions: PositionRestriction[]): Map<number, number>
   return map;
 }
 
+/** Positions shown in the per-player "avoid" panel, in baseball card order. */
+const AVOIDABLE_POSITIONS = ["P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF", "Rover"];
+
 interface RosterListProps {
   players: Player[];
   onReorder: (players: Player[]) => void;
@@ -47,6 +50,7 @@ interface RosterListProps {
   onRename: (id: string, name: string) => void;
   onAddPlayer: () => void;
   onRemovePlayer: (id: string) => void;
+  onSetAvoidPositions?: (id: string, positions: string[]) => void;
   /** ID of player whose name input should be focused */
   focusPlayerId?: string | null;
   trackRecognition?: boolean;
@@ -64,6 +68,7 @@ function SortablePlayer({
   onRename,
   onRemovePlayer,
   onToggleRecognized,
+  onSetAvoidPositions,
   onEnter,
   canRemove,
   shouldFocus,
@@ -77,6 +82,7 @@ function SortablePlayer({
   onRename: (id: string, name: string) => void;
   onRemovePlayer: (id: string) => void;
   onToggleRecognized: (id: string) => void;
+  onSetAvoidPositions?: (id: string, positions: string[]) => void;
   onEnter: () => void;
   canRemove: boolean;
   shouldFocus: boolean;
@@ -88,6 +94,13 @@ function SortablePlayer({
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: player.id });
   const inputRef = useRef<HTMLInputElement>(null);
+  const [expanded, setExpanded] = useState(false);
+  const avoid = player.avoidPositions || [];
+  const toggleAvoid = (pos: string) => {
+    if (!onSetAvoidPositions) return;
+    const next = avoid.includes(pos) ? avoid.filter(p => p !== pos) : [...avoid, pos];
+    onSetAvoidPositions(player.id, next);
+  };
 
   useEffect(() => {
     if (shouldFocus && inputRef.current) {
@@ -108,12 +121,13 @@ function SortablePlayer({
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors ${
+      className={`rounded-lg border transition-colors ${
         player.absent
           ? "bg-gray-100 border-gray-200 opacity-60"
           : "bg-white border-gray-300 hover:border-blue-400"
       } ${isDragging ? "shadow-lg z-10" : ""}`}
     >
+    <div className="flex items-center gap-2 px-3 py-2">
       {/* Drag handle */}
       <button
         {...attributes}
@@ -203,6 +217,21 @@ function SortablePlayer({
         {player.absent ? "Absent" : "Present"}
       </button>
 
+      {/* Expand button */}
+      {onSetAvoidPositions && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className={`text-xs px-1.5 py-1 rounded transition-colors ${
+            avoid.length > 0
+              ? "bg-rose-50 text-rose-600 hover:bg-rose-100"
+              : "bg-gray-100 text-gray-400 hover:bg-gray-200"
+          }`}
+          title={avoid.length > 0 ? `Avoiding: ${avoid.join(", ")}` : "Set position preferences"}
+        >
+          {expanded ? "▾" : "▸"}{avoid.length > 0 && <span className="ml-1 font-bold">{avoid.length}</span>}
+        </button>
+      )}
+
       {/* Remove button */}
       {canRemove && (
         <button
@@ -221,6 +250,37 @@ function SortablePlayer({
         </button>
       )}
     </div>
+
+    {/* Expanded preferences panel */}
+    {expanded && onSetAvoidPositions && (
+      <div className="px-3 pb-2 border-t border-gray-100">
+        <div className="mt-2 text-[11px] uppercase tracking-wider text-gray-500 font-semibold">
+          Prefer not to play
+        </div>
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {AVOIDABLE_POSITIONS.map((pos) => {
+            const active = avoid.includes(pos);
+            return (
+              <button
+                key={pos}
+                onClick={() => toggleAvoid(pos)}
+                className={`text-[11px] font-bold px-2 py-0.5 rounded transition-colors ${
+                  active
+                    ? "bg-rose-500 text-white hover:bg-rose-600"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                {pos}
+              </button>
+            );
+          })}
+        </div>
+        <div className="mt-1.5 text-[10px] text-gray-400">
+          Soft preference — applied only if it doesn't impact other players or league rules.
+        </div>
+      </div>
+    )}
+    </div>
   );
 }
 
@@ -232,6 +292,7 @@ export default function RosterList({
   onRename,
   onAddPlayer,
   onRemovePlayer,
+  onSetAvoidPositions,
   focusPlayerId,
   hideAddButton,
   maxPlayers = 13,
@@ -323,6 +384,7 @@ export default function RosterList({
                 onToggleRecognized={onToggleRecognized || (() => {})}
                 onRename={onRename}
                 onRemovePlayer={onRemovePlayer}
+                onSetAvoidPositions={onSetAvoidPositions}
                 onEnter={() => {
                   if (sorted.length < maxPlayers) {
                     onAddPlayer();

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Player, GameSheet, HistoryEntry } from "@/lib/types";
-import { generateGameSheet, validateGameSheet } from "@/lib/scheduler";
+import { generateGameSheet, validateGameSheet, applyAvoidPositionsPostPass } from "@/lib/scheduler";
 import { addHistoryEntry } from "@/lib/storage";
 import { generatePDF } from "@/lib/pdf";
 import { extractColorsFromDataUrl } from "@/lib/colors";
@@ -194,6 +194,15 @@ export default function Home() {
     [updatePlayers]
   );
 
+  const handleSetAvoidPositions = useCallback(
+    (id: string, positions: string[]) => {
+      updatePlayers((players) =>
+        players.map((p) => (p.id === id ? { ...p, avoidPositions: positions } : p))
+      );
+    },
+    [updatePlayers]
+  );
+
   const handleConfigChange = useCallback((newConfig: ConstraintConfig) => {
     setConfig(newConfig);
   }, []);
@@ -273,8 +282,10 @@ export default function Home() {
       // Use setTimeout to let the UI update before the solver runs
       setTimeout(() => {
         try {
-          const sheet = generateGameSheet(roster.players, config, randomize);
+          const rawSheet = generateGameSheet(roster.players, config, randomize);
           const present = roster.players.filter((p) => !p.absent);
+          // Honor per-player avoid-position preferences via valid swaps only.
+          const sheet = applyAvoidPositionsPostPass(rawSheet, present, config);
           const v = validateGameSheet(sheet, present, config);
           setGameSheet(sheet);
           setViolations(v);
@@ -512,6 +523,7 @@ export default function Home() {
                 onRename={handleRename}
                 onAddPlayer={handleAddPlayer}
                 onRemovePlayer={handleRemovePlayer}
+                onSetAvoidPositions={handleSetAvoidPositions}
                 focusPlayerId={focusPlayerId}
                 restrictions={config.restrictions}
                 trackRecognition={config.trackRecognition}
