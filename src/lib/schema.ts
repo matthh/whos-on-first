@@ -16,6 +16,14 @@ export const users = pgTable("users", {
   activeTeamId: integer("active_team_id"),
   createdAt: timestamp("created_at").defaultNow(),
   lastLoginAt: timestamp("last_login_at"),
+  // Spotify integration — per-coach OAuth so the walk-on playlist lives in
+  // the coach's own account. Never blocking — every Spotify call should
+  // soft-fail if these are missing or expired and unable to refresh.
+  spotifyUserId: text("spotify_user_id"),
+  spotifyDisplayName: text("spotify_display_name"),
+  spotifyAccessToken: text("spotify_access_token"),
+  spotifyRefreshToken: text("spotify_refresh_token"),
+  spotifyExpiresAt: timestamp("spotify_expires_at"),
 });
 
 export const teams = pgTable("teams", {
@@ -24,6 +32,10 @@ export const teams = pgTable("teams", {
   name: text("name").notNull(),
   logoDataUrl: text("logo_data_url"),
   constraintConfig: json("constraint_config"),
+  // Cached id of the team's "{TeamName} Walk On Music" playlist so we update
+  // the same playlist every game instead of creating duplicates. Cleared
+  // when the user disconnects Spotify or renames the team.
+  spotifyPlaylistId: text("spotify_playlist_id"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (t) => ({
   userNameUniq: uniqueIndex("teams_user_id_name_uniq").on(t.userId, t.name),
