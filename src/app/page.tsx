@@ -5,6 +5,7 @@ import { Player, GameSheet, HistoryEntry } from "@/lib/types";
 import { generateGameSheet, validateGameSheet, applyAvoidPositionsPostPass } from "@/lib/scheduler";
 import { addHistoryEntry } from "@/lib/storage";
 import { generatePDF } from "@/lib/pdf";
+import { generateWalkUpPDF } from "@/lib/walk-up-pdf";
 import { extractColorsFromDataUrl } from "@/lib/colors";
 import {
   ConstraintConfig,
@@ -362,6 +363,15 @@ export default function Home() {
     setActiveTab("roster");
   }, []);
 
+  const handleExportWalkUpSheet = useCallback(async () => {
+    if (!roster || !config) return;
+    const colors = await extractColorsFromDataUrl(config.logoDataUrl);
+    const doc = await generateWalkUpPDF(roster.players, config.teamName, config.logoDataUrl, colors);
+    const ts = new Date().toISOString().replace(/[:.]/g, "").slice(0, 15);
+    const slug = config.teamName.toLowerCase().replace(/\s+/g, "_");
+    doc.save(`${slug}_walk_up_${ts}.pdf`);
+  }, [roster, config]);
+
   const handleExportPDF = useCallback(async (opposingTeam: string, isHome: boolean) => {
     if (!roster || !gameSheet || !config) return;
     const colors = await extractColorsFromDataUrl(config.logoDataUrl);
@@ -592,6 +602,7 @@ export default function Home() {
           innings={config.innings}
           config={config}
           onExportPDF={handleExportPDF}
+          onExportWalkUpSheet={handleExportWalkUpSheet}
           onRerun={handleRerun}
           onStartOver={handleStartOver}
           onSheetChange={(newSheet, newViolations) => {
