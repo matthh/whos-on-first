@@ -97,23 +97,36 @@ export async function generateWalkUpPDF(
     let cell = "";
     if (song) {
       const tag = song.isDefaultPick ? "(suggested) " : "";
-      cell = `${tag}${song.title}\n${song.artist}`;
+      cell = `${tag}${song.title} — ${song.artist}`;
     }
     return [String(i + 1), p.name, cell];
   });
 
+  // Single-page constraint: pick a row height that lets all present players
+  // (and a small buffer) fit between the subtitle and the page bottom margin.
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const tableTop = startY + 18;
+  const bottomMargin = 12;
+  const headerRowH = 8;
+  const availableForBody = pageHeight - tableTop - bottomMargin - headerRowH;
+  const idealRowH = 13;
+  const minRowH = 7;
+  const fitRowH = Math.max(minRowH, Math.min(idealRowH, availableForBody / Math.max(1, present.length)));
+  const fontSize = fitRowH < 9 ? 9 : 11;
+
   autoTable(doc, {
-    startY: startY + 18,
+    startY: tableTop,
     head: [headers],
     body: rows,
     theme: "grid",
     styles: {
-      fontSize: 11,
-      cellPadding: 3,
+      fontSize,
+      cellPadding: { top: 1.5, right: 3, bottom: 1.5, left: 3 },
       lineColor: [180, 180, 180],
       lineWidth: 0.3,
-      minCellHeight: 14, // tall row leaves room for hand-written edits
+      minCellHeight: fitRowH,
       valign: "middle",
+      overflow: "ellipsize",
     },
     headStyles: {
       fillColor: HEADER_BG,
@@ -121,10 +134,11 @@ export async function generateWalkUpPDF(
       fontStyle: "bold",
       halign: "left",
       fontSize: 10,
+      minCellHeight: headerRowH,
     },
     bodyStyles: {
       textColor: [60, 60, 60],
-      fontSize: 11,
+      fontSize,
     },
     columnStyles: {
       0: { halign: "center", cellWidth: 10, fontStyle: "bold" },
