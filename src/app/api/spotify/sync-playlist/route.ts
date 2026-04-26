@@ -145,9 +145,20 @@ export async function POST(request: NextRequest): Promise<NextResponse<SyncResul
     if (!createRes.ok) {
       const body = await createRes.text().catch(() => "");
       console.error(`[spotify/sync] create playlist failed ${createRes.status}: ${body.slice(0, 300)}`);
+      // On 403, also fetch /me to surface which Spotify identity the token
+      // is actually authenticated as — most common dev-mode trap is the
+      // email in User Management not matching this exact email.
+      let identity = "";
+      if (createRes.status === 403) {
+        const meRes = await fetch(`${SPOTIFY_API_BASE}/me`, { headers: { Authorization: `Bearer ${token}` } });
+        if (meRes.ok) {
+          const me = (await meRes.json()) as { id?: string; email?: string; display_name?: string };
+          identity = ` — token is authenticated as: id=${me.id ?? "?"} email=${me.email ?? "(no email scope)"} name=${me.display_name ?? "?"}`;
+        }
+      }
       return NextResponse.json({
         ok: false,
-        reason: `create_failed_${createRes.status}: ${body.slice(0, 200)}`,
+        reason: `create_failed_${createRes.status}: ${body.slice(0, 150)}${identity}`,
       });
     }
     const created = (await createRes.json()) as { id: string };
