@@ -381,7 +381,12 @@ function renderPractice(
     const station = activeStations[i] || { name: `Station ${i + 1}` };
     const end = clock + perStation;
 
-    const stGuide = getStationGuide(station.name, practice.ageRange, (station as PracticeStation).description);
+    // LLM-generated guidance wins over the hardcoded library when present.
+    // Coaches can author this via the Add station / Edit station flow.
+    const generated = (station as PracticeStation).generated;
+    const stGuide = generated
+      ? { setup: generated.setup, drills: [...generated.drills], coachQuote: generated.coachQuote }
+      : getStationGuide(station.name, practice.ageRange, (station as PracticeStation).description);
     y = sectionHeader(doc, y, `STATION ${i + 1}: ${station.name.toUpperCase()} (${stGuide.coachQuote})`, `${clock}\u2013${end} mins`, primary, pageW);
     stGuide.coachQuote = "";
     y = sectionBody(doc, y, stGuide, secondary, pageW, pageH, trimLevel);

@@ -17,8 +17,21 @@ export interface PositionRestriction {
 
 export interface PracticeStation {
   name: string;
+  /** Coach-authored description of what they want to teach. Feeds the LLM. */
   description?: string;
   enabled: boolean;
+  /**
+   * LLM-generated coaching guidance for this station. Present when the coach
+   * created (or regenerated) a custom station via Claude. The PDF renderer
+   * prefers this over the hardcoded library when present.
+   */
+  generated?: {
+    setup: string;
+    drills: string[];
+    coachQuote: string;
+    /** ISO timestamp of last generation, for staleness display in editor. */
+    generatedAt: string;
+  };
 }
 
 export interface PracticeConfig {

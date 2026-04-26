@@ -27,6 +27,9 @@ export default function PracticePanel({
   const [generating, setGenerating] = useState(false);
   const [customStation, setCustomStation] = useState("");
   const [customDescription, setCustomDescription] = useState("");
+  const [llmBusy, setLlmBusy] = useState(false);
+  const [llmError, setLlmError] = useState<string | null>(null);
+  const [editingStation, setEditingStation] = useState<string | null>(null);
 
   const update = useCallback(
     (partial: Partial<PracticeConfig>) => {
@@ -60,24 +63,86 @@ export default function PracticePanel({
     update({ stations: updated });
   };
 
-  const addCustomStation = () => {
-    if (!customStation.trim()) return;
+  const fetchGuide = async (
+    name: string,
+    description: string,
+  ): Promise<{ setup: string; drills: string[]; coachQuote: string } | null> => {
+    try {
+      const res = await fetch("/api/practice/generate-station", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, description, ageRange: practice.ageRange }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setLlmError(data?.error || `Failed (${res.status})`);
+        return null;
+      }
+      return data;
+    } catch (err) {
+      setLlmError(err instanceof Error ? err.message : "Network error");
+      return null;
+    }
+  };
+
+  const addCustomStation = async () => {
+    const name = customStation.trim();
+    if (!name) return;
     const exists = practice.stations.some(
-      (s) => s.name.toLowerCase() === customStation.trim().toLowerCase()
+      (s) => s.name.toLowerCase() === name.toLowerCase()
     );
     if (exists) return;
+    setLlmBusy(true);
+    setLlmError(null);
+    const guide = await fetchGuide(name, customDescription.trim());
+    setLlmBusy(false);
     update({
       stations: [
         ...practice.stations,
         {
-          name: customStation.trim(),
+          name,
           description: customDescription.trim() || undefined,
           enabled: true,
+          generated: guide
+            ? { ...guide, generatedAt: new Date().toISOString() }
+            : undefined,
         },
       ],
     });
     setCustomStation("");
     setCustomDescription("");
+  };
+
+  const regenerateStation = async (originalName: string, newName: string, newDescription: string) => {
+    setLlmBusy(true);
+    setLlmError(null);
+    const guide = await fetchGuide(newName, newDescription);
+    setLlmBusy(false);
+    if (!guide) return;
+    update({
+      stations: practice.stations.map((s) =>
+        s.name === originalName
+          ? {
+              ...s,
+              name: newName,
+              description: newDescription || undefined,
+              generated: { ...guide, generatedAt: new Date().toISOString() },
+            }
+          : s
+      ),
+    });
+    setEditingStation(newName);
+  };
+
+  const updateStationMeta = (originalName: string, newName: string, newDescription: string) => {
+    update({
+      stations: practice.stations.map((s) =>
+        s.name === originalName
+          ? { ...s, name: newName, description: newDescription || undefined }
+          : s
+      ),
+    });
+    setEditingStation(newName);
   };
 
   const removeStation = (name: string) => {
@@ -243,32 +308,60 @@ export default function PracticePanel({
                 (s) => s.name === station.name
               );
               return (
-                <button
+                <span
                   key={station.name}
-                  onClick={() => toggleStation(station.name)}
-                  title={station.description || undefined}
                   className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors flex items-center gap-1 ${
                     station.enabled
                       ? "bg-[#002d62] text-white"
                       : "bg-gray-100 text-gray-500 hover:bg-gray-200"
                   }`}
                 >
-                  {station.name}
+                  <button
+                    onClick={() => toggleStation(station.name)}
+                    title={station.description || (station.generated ? "Tap pencil to view drill instructions" : undefined)}
+                    className="bg-transparent border-none p-0 m-0 font-inherit text-inherit cursor-pointer"
+                  >
+                    {station.name}
+                    {station.generated && <span className="ml-1 opacity-70" title="Has custom drill instructions">✨</span>}
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setEditingStation(station.name); }}
+                    className="ml-0.5 opacity-60 hover:opacity-100"
+                    title="Edit station"
+                    aria-label="Edit station"
+                  >
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+                  </button>
                   {!isDefault && (
-                    <span
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeStation(station.name);
-                      }}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); removeStation(station.name); }}
                       className="ml-0.5 opacity-60 hover:opacity-100"
+                      title="Remove station"
+                      aria-label="Remove station"
                     >
-                      x
-                    </span>
+                      ×
+                    </button>
                   )}
-                </button>
+                </span>
               );
             })}
           </div>
+
+          {editingStation && (() => {
+            const station = practice.stations.find((s) => s.name === editingStation);
+            if (!station) return null;
+            return (
+              <StationEditor
+                key={station.name}
+                station={station}
+                busy={llmBusy}
+                error={llmError}
+                onClose={() => { setEditingStation(null); setLlmError(null); }}
+                onSaveMeta={(newName, newDescription) => updateStationMeta(station.name, newName, newDescription)}
+                onRegenerate={(newName, newDescription) => regenerateStation(station.name, newName, newDescription)}
+              />
+            );
+          })()}
 
           {/* Add custom station */}
           <div className="mt-2 space-y-1.5">
@@ -278,24 +371,29 @@ export default function PracticePanel({
                 value={customStation}
                 onChange={(e) => setCustomStation(e.target.value)}
                 placeholder="Station name..."
-                className="flex-1 border border-gray-200 rounded-md px-2 py-1 text-xs"
+                disabled={llmBusy}
+                className="flex-1 border border-gray-200 rounded-md px-2 py-1 text-xs disabled:bg-gray-50"
               />
               <button
                 onClick={addCustomStation}
-                disabled={!customStation.trim()}
+                disabled={!customStation.trim() || llmBusy}
                 className="px-2 py-1 text-xs font-bold rounded-md bg-gray-100 text-gray-500 hover:bg-gray-200 disabled:opacity-30"
               >
-                Add
+                {llmBusy ? "Generating…" : "Add"}
               </button>
             </div>
             {customStation.trim() && (
               <textarea
                 value={customDescription}
                 onChange={(e) => setCustomDescription(e.target.value)}
-                placeholder="Describe the drill (what it is, how it works, what skills it builds)..."
+                placeholder="What do you want to teach? (e.g. 'reading the ball off the bat', 'two-strike approach') — Claude will draft drills."
                 rows={2}
-                className="w-full border border-gray-200 rounded-md px-2 py-1 text-xs resize-none"
+                disabled={llmBusy}
+                className="w-full border border-gray-200 rounded-md px-2 py-1 text-xs resize-none disabled:bg-gray-50"
               />
+            )}
+            {llmError && !editingStation && (
+              <div className="text-[11px] text-red-600">{llmError}</div>
             )}
           </div>
         </div>
@@ -347,6 +445,98 @@ export default function PracticePanel({
           }`}
         >
           {generating ? "Generating..." : "Generate Practice Plan PDF"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function StationEditor({
+  station,
+  busy,
+  error,
+  onClose,
+  onSaveMeta,
+  onRegenerate,
+}: {
+  station: PracticeStation;
+  busy: boolean;
+  error: string | null;
+  onClose: () => void;
+  onSaveMeta: (name: string, description: string) => void;
+  onRegenerate: (name: string, description: string) => void;
+}) {
+  const [name, setName] = useState(station.name);
+  const [description, setDescription] = useState(station.description || "");
+  const generated = station.generated;
+  const dirty = name !== station.name || description !== (station.description || "");
+
+  return (
+    <div className="mt-3 border border-gray-200 rounded-md p-3 bg-gray-50 space-y-2">
+      <div className="flex items-center justify-between">
+        <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Edit station</div>
+        <button onClick={onClose} className="text-xs text-gray-500 hover:text-gray-800" aria-label="Close">×</button>
+      </div>
+      <div>
+        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wide mb-1">Name</label>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          disabled={busy}
+          className="w-full border border-gray-200 rounded-md px-2 py-1 text-xs disabled:bg-gray-100"
+        />
+      </div>
+      <div>
+        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wide mb-1">What to teach</label>
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={2}
+          disabled={busy}
+          placeholder="e.g. 'reading the ball off the bat', 'fielding short hops'"
+          className="w-full border border-gray-200 rounded-md px-2 py-1 text-xs resize-none disabled:bg-gray-100"
+        />
+      </div>
+
+      {generated && (
+        <div className="border border-gray-200 rounded-md bg-white p-2 text-xs space-y-1.5">
+          <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Current drill instructions</div>
+          <div><span className="font-semibold">Setup:</span> {generated.setup}</div>
+          <div>
+            <div className="font-semibold mb-0.5">Drills:</div>
+            <ul className="list-disc list-inside space-y-0.5">
+              {generated.drills.map((d, i) => <li key={i}>{d}</li>)}
+            </ul>
+          </div>
+          <div className="italic text-gray-600">{generated.coachQuote}</div>
+          <div className="text-[10px] text-gray-400">Last generated {new Date(generated.generatedAt).toLocaleString()}</div>
+        </div>
+      )}
+
+      {error && <div className="text-[11px] text-red-600">{error}</div>}
+
+      <div className="flex gap-2 justify-end pt-1">
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={busy}
+          className="text-xs text-gray-600 hover:text-gray-900 px-2 py-1 disabled:opacity-50"
+        >Close</button>
+        {dirty && (
+          <button
+            type="button"
+            onClick={() => onSaveMeta(name.trim(), description.trim())}
+            disabled={busy || !name.trim()}
+            className="text-xs font-bold text-gray-700 bg-gray-200 hover:bg-gray-300 rounded px-2 py-1 disabled:opacity-50"
+          >Save</button>
+        )}
+        <button
+          type="button"
+          onClick={() => onRegenerate(name.trim() || station.name, description.trim())}
+          disabled={busy || !name.trim()}
+          className="text-xs font-bold text-white bg-[#002d62] hover:bg-[#003d82] rounded px-2 py-1 disabled:opacity-50"
+        >
+          {busy ? "Generating…" : generated ? "Regenerate instructions" : "Generate instructions"}
         </button>
       </div>
     </div>
