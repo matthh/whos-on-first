@@ -3,31 +3,11 @@ import autoTable from "jspdf-autotable";
 import { Player } from "./types";
 import { TeamColors, hexToRgb } from "./colors";
 
-let pennantCache: string | null = null;
-async function loadPennant(): Promise<string | null> {
-  if (pennantCache) return pennantCache;
-  try {
-    const res = await fetch("/logo.png");
-    const blob = await res.blob();
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        pennantCache = reader.result as string;
-        resolve(pennantCache);
-      };
-      reader.onerror = () => resolve(null);
-      reader.readAsDataURL(blob);
-    });
-  } catch {
-    return null;
-  }
-}
-
 /**
- * Printable walk-up song sheet — same header style as the Defensive
- * Positions Roster. One row per present player in batting order, with a
- * pre-filled song box (current pick or auto-suggested default) and room
- * to write in changes when collecting from parents.
+ * Printable walk-up song sheet — single-page handout for parents.
+ * One row per present player in batting order with a pre-filled song
+ * box (current pick or auto-suggested default) and room to write in
+ * changes. Header is intentionally compact so even big rosters fit.
  */
 export async function generateWalkUpPDF(
   players: Player[],
@@ -39,19 +19,8 @@ export async function generateWalkUpPDF(
   const present = players.filter((p) => !p.absent).sort((a, b) => a.rank - b.rank);
   const pageWidth = doc.internal.pageSize.getWidth();
 
-  let startY = 10;
-
-  const pennant = await loadPennant();
-  if (pennant) {
-    try {
-      const logoW = 60;
-      const logoH = logoW * (1292 / 2521);
-      doc.addImage(pennant, "PNG", (pageWidth - logoW) / 2, startY, logoW, logoH);
-      startY += logoH + 3;
-    } catch {
-      // skip
-    }
-  }
+  // Compact header so the table can claim almost the entire page.
+  const startY = 10;
 
   let titleX = 14;
   if (logoDataUrl) {
@@ -78,14 +47,13 @@ export async function generateWalkUpPDF(
   doc.setLineWidth(0.8);
   doc.line(20, startY + 9, pageWidth - 20, startY + 9);
 
-  // Subtitle / instructions
-  doc.setFontSize(9);
+  doc.setFontSize(8);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(110, 110, 110);
   doc.text(
     "Songs in italics are auto-suggested. Confirm with each player or write in their pick.",
     pageWidth / 2,
-    startY + 14,
+    startY + 13,
     { align: "center" },
   );
 
@@ -104,15 +72,16 @@ export async function generateWalkUpPDF(
 
   // Single-page constraint: pick a row height that lets all present players
   // (and a small buffer) fit between the subtitle and the page bottom margin.
+  // Fall back to smaller font if we have a huge roster.
   const pageHeight = doc.internal.pageSize.getHeight();
-  const tableTop = startY + 18;
-  const bottomMargin = 12;
-  const headerRowH = 8;
+  const tableTop = startY + 17;
+  const bottomMargin = 8;
+  const headerRowH = 7;
   const availableForBody = pageHeight - tableTop - bottomMargin - headerRowH;
   const idealRowH = 13;
-  const minRowH = 7;
+  const minRowH = 6;
   const fitRowH = Math.max(minRowH, Math.min(idealRowH, availableForBody / Math.max(1, present.length)));
-  const fontSize = fitRowH < 9 ? 9 : 11;
+  const fontSize = fitRowH < 8 ? 8 : fitRowH < 10 ? 9 : 11;
 
   autoTable(doc, {
     startY: tableTop,
