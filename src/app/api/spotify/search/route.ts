@@ -42,7 +42,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Spotify not connected", tracks: [] }, { status: 412 });
   }
 
-  const params = new URLSearchParams({ q, type: "track", limit: "20" });
+  // Spotify is finicky about limit on /search — pass it as a single integer
+  // and skip if it would force a no-op. Default server-side is 20.
+  const params = new URLSearchParams();
+  params.set("q", q);
+  params.set("type", "track");
   const res = await fetch(`${SPOTIFY_API_BASE}/search?${params}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
