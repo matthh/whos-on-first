@@ -17,7 +17,7 @@ interface SearchTrack {
 
 interface SpotifyStatus {
   configured: boolean;
-  connected: boolean;
+  linked: boolean;
 }
 
 export default function PlayerEditModal({
@@ -63,14 +63,14 @@ export default function PlayerEditModal({
   // Spotify status
   useEffect(() => {
     fetch("/api/auth/spotify-status")
-      .then((r) => (r.ok ? r.json() : { configured: false, connected: false }))
+      .then((r) => (r.ok ? r.json() : { configured: false, linked: false }))
       .then(setSpotifyStatus)
-      .catch(() => setSpotifyStatus({ configured: false, connected: false }));
+      .catch(() => setSpotifyStatus({ configured: false, linked: false }));
   }, []);
 
   // Debounced search
   useEffect(() => {
-    if (!spotifyStatus?.connected) return;
+    if (!spotifyStatus?.linked) return;
     if (!query.trim()) {
       setResults([]);
       setSearchErr(null);
@@ -199,10 +199,8 @@ export default function PlayerEditModal({
 
             {!spotifyStatus?.configured ? (
               <p className="text-xs text-gray-500">Spotify integration is not configured on this server.</p>
-            ) : !spotifyStatus.connected ? (
-              <p className="text-xs text-gray-500">
-                <a href="/settings" className="text-[#002d62] underline">Connect Spotify in Settings</a> to add a walk-on song.
-              </p>
+            ) : !spotifyStatus.linked ? (
+              <p className="text-xs text-gray-500">Spotify isn't linked yet — the app owner needs to link a service account before walk-on songs can be picked.</p>
             ) : (
               <>
                 {song ? (

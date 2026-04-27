@@ -11,8 +11,60 @@
  */
 
 import { db } from "./db";
-import { users } from "./schema";
+import { users, appSettings } from "./schema";
 import { eq } from "drizzle-orm";
+
+const SPOTIFY_SERVICE_REFRESH_KEY = "spotify_service_refresh_token";
+const SPOTIFY_SERVICE_USER_ID_KEY = "spotify_service_user_id";
+
+async function getAppSetting(key: string): Promise<string | null> {
+  const [row] = await db.select().from(appSettings).where(eq(appSettings.key, key)).limit(1);
+  return row?.value ?? null;
+}
+
+async function setAppSetting(key: string, value: string | null): Promise<void> {
+  if (value === null) {
+    await db.delete(appSettings).where(eq(appSettings.key, key));
+    return;
+  }
+  // Upsert
+  await db
+    .insert(appSettings)
+    .values({ key, value, updatedAt: new Date() })
+    .onConflictDoUpdate({ target: appSettings.key, set: { value, updatedAt: new Date() } });
+}
+
+export async function setSpotifyServiceTokens(refreshToken: string, spotifyUserId: string): Promise<void> {
+  await setAppSetting(SPOTIFY_SERVICE_REFRESH_KEY, refreshToken);
+  await setAppSetting(SPOTIFY_SERVICE_USER_ID_KEY, spotifyUserId);
+}
+
+export async function getSpotifyServiceUserId(): Promise<string | null> {
+  return getAppSetting(SPOTIFY_SERVICE_USER_ID_KEY);
+}
+
+/**
+ * Get a valid service-level Spotify access token by refreshing the stored
+ * refresh token. Used for all walk-on-music playlist operations so coaches
+ * never need to authorize Spotify themselves. Returns null if the service
+ * account hasn't been linked yet.
+ */
+export async function getValidServiceAccessToken(): Promise<string | null> {
+  const refreshToken = await getAppSetting(SPOTIFY_SERVICE_REFRESH_KEY);
+  if (!refreshToken) return null;
+  const fresh = await refreshAccessToken(refreshToken);
+  if (!fresh) return null;
+  // Persist the rotated refresh token if Spotify issued one.
+  if (fresh.refresh_token && fresh.refresh_token !== refreshToken) {
+    await setAppSetting(SPOTIFY_SERVICE_REFRESH_KEY, fresh.refresh_token);
+  }
+  return fresh.access_token;
+}
+
+export async function clearSpotifyServiceTokens(): Promise<void> {
+  await setAppSetting(SPOTIFY_SERVICE_REFRESH_KEY, null);
+  await setAppSetting(SPOTIFY_SERVICE_USER_ID_KEY, null);
+}
 
 export const SPOTIFY_AUTHORIZE_URL = "https://accounts.spotify.com/authorize";
 export const SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token";

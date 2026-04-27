@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserId } from "@/lib/auth";
-import { getValidAccessToken, SPOTIFY_API_BASE } from "@/lib/spotify";
+import { getValidServiceAccessToken, SPOTIFY_API_BASE } from "@/lib/spotify";
 
 interface SpotifyArtist {
   name: string;
@@ -37,9 +37,9 @@ export async function GET(request: NextRequest) {
   const q = new URL(request.url).searchParams.get("q")?.trim();
   if (!q) return NextResponse.json({ tracks: [] });
 
-  const token = await getValidAccessToken(userId);
+  const token = await getValidServiceAccessToken();
   if (!token) {
-    return NextResponse.json({ error: "Spotify not connected", tracks: [] }, { status: 412 });
+    return NextResponse.json({ error: "Spotify service account not linked", tracks: [] }, { status: 412 });
   }
 
   // Spotify is finicky about limit on /search — pass it as a single integer

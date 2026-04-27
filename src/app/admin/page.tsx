@@ -112,6 +112,7 @@ export default function AdminPage() {
     );
   }
 
+
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -133,6 +134,8 @@ export default function AdminPage() {
           </a>
         </div>
       </header>
+
+      <SpotifyServiceLink />
 
       {/* Invite form */}
       <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6">
@@ -292,6 +295,61 @@ export default function AdminPage() {
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+function SpotifyServiceLink() {
+  const [status, setStatus] = useState<{ configured: boolean; linked: boolean; serviceUserId: string | null } | null>(null);
+  const [flash, setFlash] = useState<string | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const result = params.get("spotify_service");
+    if (result === "linked") setFlash(`Spotify service account linked${params.get("as") ? ` as ${params.get("as")}` : ""}.`);
+    else if (result === "error") setFlash(`Spotify link failed: ${params.get("reason") || "unknown"}`);
+    if (result) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("spotify_service");
+      url.searchParams.delete("reason");
+      url.searchParams.delete("as");
+      window.history.replaceState({}, "", url.toString());
+    }
+    fetch("/api/auth/spotify-status").then((r) => r.json()).then(setStatus).catch(() => {});
+  }, []);
+
+  if (!status) return null;
+  if (!status.configured) return null;
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6">
+      <h2 className="text-sm font-bold text-gray-700 mb-2">Spotify Service Account</h2>
+      <p className="text-xs text-gray-500 mb-3">
+        All walk-on-music playlists are created in this single Spotify account on behalf of every coach. Link once; coaches don't authorize Spotify themselves.
+      </p>
+      {flash && (
+        <div className={`text-[11px] mb-2 ${flash.includes("failed") ? "text-red-600" : "text-emerald-700"}`}>{flash}</div>
+      )}
+      {status.linked ? (
+        <div className="flex items-center gap-3">
+          <div className="flex-1 text-sm text-gray-700">
+            Linked as <code className="text-xs bg-gray-100 px-1.5 py-0.5 rounded">{status.serviceUserId}</code>
+          </div>
+          <a
+            href="/api/auth/spotify-service-connect"
+            className="text-xs font-medium text-white bg-[#002d62] hover:bg-[#003d82] rounded px-3 py-1.5 whitespace-nowrap"
+          >
+            Re-link
+          </a>
+        </div>
+      ) : (
+        <a
+          href="/api/auth/spotify-service-connect"
+          className="inline-block text-xs font-medium text-white bg-[#1DB954] hover:bg-[#1aa84a] rounded px-3 py-1.5"
+        >
+          Link Spotify (admin)
+        </a>
+      )}
     </div>
   );
 }

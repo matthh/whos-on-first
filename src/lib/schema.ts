@@ -58,6 +58,18 @@ export const gameHistory = pgTable("game_history", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+/**
+ * App-wide settings keyed by a string. Used for service-account credentials
+ * that aren't scoped to a single user — e.g. the Spotify refresh token used
+ * to create walk-on-music playlists in the app owner's account on behalf
+ * of every coach. One row per setting.
+ */
+export const appSettings = pgTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const constraintOverrides = pgTable("constraint_overrides", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id).notNull(),

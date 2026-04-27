@@ -1,31 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserId } from "@/lib/auth";
-import { db } from "@/lib/db";
-import { users } from "@/lib/schema";
-import { eq } from "drizzle-orm";
-import { getSpotifyConfig } from "@/lib/spotify";
+import { getSpotifyConfig, getSpotifyServiceUserId } from "@/lib/spotify";
 
+/**
+ * Returns whether Spotify is wired up at the *app* level — used by both
+ * the player editor (to decide whether to show the song picker) and the
+ * admin page (to decide whether to show the "Link service account" button).
+ */
 export async function GET(request: NextRequest) {
   const userId = getUserId(request);
-  if (!userId) {
-    return NextResponse.json({ connected: false, configured: false });
-  }
+  if (!userId) return NextResponse.json({ configured: false, linked: false });
   const configured = !!getSpotifyConfig();
-  const [user] = await db
-    .select({
-      spotifyUserId: users.spotifyUserId,
-      spotifyDisplayName: users.spotifyDisplayName,
-      hasRefresh: users.spotifyRefreshToken,
-    })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
-
-  const connected = !!(user?.hasRefresh);
+  const serviceUserId = await getSpotifyServiceUserId();
   return NextResponse.json({
     configured,
-    connected,
-    spotifyUserId: connected ? user!.spotifyUserId : null,
-    displayName: connected ? user!.spotifyDisplayName : null,
+    linked: !!serviceUserId,
+    serviceUserId,
   });
 }
