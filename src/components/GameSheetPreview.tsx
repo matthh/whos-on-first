@@ -24,7 +24,7 @@ interface GameSheetPreviewProps {
   logoDataUrl?: string | null;
   innings: number;
   config: ConstraintConfig;
-  onExportPDF: (opposingTeam: string, isHome: boolean) => void;
+  onExportPDF: (opposingTeam: string, isHome: boolean, gameDate: string) => void;
   onExportWalkUpSheet?: () => void;
   onRerun: () => void;
   onStartOver: () => void;
@@ -158,6 +158,31 @@ export default function GameSheetPreview({
   // Opposing team + home/away for the PDF scorecard
   const [opposingTeam, setOpposingTeam] = useState("");
   const [isHome, setIsHome] = useState(true);
+  const [gameDate, setGameDate] = useState(() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  });
+
+  const formatGameDate = (iso: string) => {
+    if (!iso) return "";
+    const [y, m, d] = iso.split("-");
+    return `${parseInt(m, 10)}/${parseInt(d, 10)}/${y.slice(-2)}`;
+  };
+
+  const opponentLabel = opposingTeam.trim().toUpperCase();
+  const usLabel = teamName.toUpperCase();
+  const dateLabel = formatGameDate(gameDate);
+  const matchupLabel = opponentLabel
+    ? isHome
+      ? `${opponentLabel} AT ${usLabel}`
+      : `${usLabel} AT ${opponentLabel}`
+    : usLabel;
+  const headerTitle = opponentLabel && dateLabel
+    ? `${matchupLabel} ${dateLabel} - DEFENSIVE POSITIONS`
+    : `${matchupLabel} - DEFENSIVE POSITIONS`;
 
   // Drag state
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
@@ -298,7 +323,7 @@ export default function GameSheetPreview({
             />
           )}
           <h2 className="text-lg font-bold text-gray-600 tracking-wide whitespace-nowrap">
-            {teamName.toUpperCase()} — DEFENSIVE POSITIONS
+            {headerTitle}
           </h2>
         </div>
         <div className="h-0.5 bg-amber-500 mx-8 mt-1" />
@@ -400,7 +425,7 @@ export default function GameSheetPreview({
       )}
 
       {/* Game matchup — populates the scorecard TEAM rows in the PDF */}
-      <div className="grid grid-cols-[1fr_auto] gap-3 items-end pt-2">
+      <div className="grid grid-cols-[1fr_auto_auto] gap-3 items-end pt-2">
         <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">
           Opposing team
           <input
@@ -408,6 +433,15 @@ export default function GameSheetPreview({
             value={opposingTeam}
             onChange={(e) => setOpposingTeam(e.target.value)}
             placeholder="e.g., Tigers"
+            className="border border-gray-300 rounded-md px-3 py-2 text-sm font-medium text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#002d62]/30"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">
+          Game date
+          <input
+            type="date"
+            value={gameDate}
+            onChange={(e) => setGameDate(e.target.value)}
             className="border border-gray-300 rounded-md px-3 py-2 text-sm font-medium text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#002d62]/30"
           />
         </label>
@@ -439,7 +473,7 @@ export default function GameSheetPreview({
       {/* Action buttons */}
       <div className="flex gap-3">
         <button
-          onClick={() => onExportPDF(opposingTeam.trim(), isHome)}
+          onClick={() => onExportPDF(opposingTeam.trim(), isHome, gameDate)}
           className="flex-1 py-3 rounded-lg font-bold text-white text-sm bg-[#002d62] hover:bg-[#003d82] active:bg-[#001d42] transition-colors whitespace-nowrap"
         >
           Export to PDF

@@ -372,7 +372,7 @@ export default function Home() {
     doc.save(`${slug}_walk_up_${ts}.pdf`);
   }, [roster, config]);
 
-  const handleExportPDF = useCallback(async (opposingTeam: string, isHome: boolean) => {
+  const handleExportPDF = useCallback(async (opposingTeam: string, isHome: boolean, gameDate: string) => {
     if (!roster || !gameSheet || !config) return;
     const colors = await extractColorsFromDataUrl(config.logoDataUrl);
     const doc = await generatePDF(
@@ -382,7 +382,7 @@ export default function Home() {
       config.logoDataUrl,
       config.innings,
       colors,
-      { opposingTeam, isHome }
+      { opposingTeam, isHome, gameDate }
     );
     const ts = new Date().toISOString().replace(/[:.]/g, "").slice(0, 15);
     doc.save(`game-sheet-${ts}.pdf`);
