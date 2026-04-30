@@ -99,21 +99,23 @@ const BENCH_6INN: Record<number, number[][]> = {
 
 /**
  * Alternate 13-player schedule when prioritizeInfieldOverLateBench is on.
- * Top-4 bench in innings 1-4, so their free-choice innings fall in the back
- * half (5-6) where bench-adjacency creates fewer OF-blocked players, giving
- * each top-4 player 4 IF + 1 OF + 1 BENCH (vs 3 IF + 2 OF in the late-bench
- * schedule). Fairness preserved — first 13 sits are unique.
+ * Minimal change from the default: swap r1 (top-1) into inning 4 and r4
+ * (top-4) into inning 5. r1 benches in the second half but not last, so his
+ * free-choice innings are 1, 2, 6 — only inning 2 forces OF (math), giving
+ * him 4 IF + 1 OF. r4 (worst of top-4) takes the inning-5 slot and absorbs
+ * the 2-forced-OF hit (3 IF + 2 OF). All top-4 still bench in innings 2-5
+ * and fairness is preserved.
  *
  * 13-player double-sitters: ranks 9, 10, 11, 12, 13.
  */
 const BENCH_6INN_IF_PRIORITY: Record<number, number[][]> = {
   13: [
-    [1, 5, 9],       // Inn 1: r1 (top-1) benches first
-    [2, 6, 10],      // Inn 2: r2
-    [3, 7, 11],      // Inn 3: r3
-    [4, 13, 12],     // Inn 4: r4; r12 + r13 first sits
-    [8, 9, 11],      // Inn 5: r8 last unique first sit; r9, r11 second sits
-    [10, 12, 13],    // Inn 6: r10, r12, r13 second sits
+    [13, 8, 5],      // Inn 1: 0 top-4 (same as default)
+    [2, 12, 7],      // Inn 2: rank 2 (was rank 4)
+    [3, 11, 6],      // Inn 3: rank 3 (same)
+    [1, 10, 9],      // Inn 4: rank 1 (was rank 2) — Cam, latest while still 4 IF
+    [4, 13, 11],     // Inn 5: rank 4 (was rank 1) — Seamus takes the OF hit
+    [9, 10, 12],     // Inn 6: 3 double-sitters (same)
   ],
 };
 
