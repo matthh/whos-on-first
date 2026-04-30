@@ -98,6 +98,26 @@ const BENCH_6INN: Record<number, number[][]> = {
 };
 
 /**
+ * Alternate 13-player schedule when prioritizeInfieldOverLateBench is on.
+ * Top-4 bench in innings 1-4, so their free-choice innings fall in the back
+ * half (5-6) where bench-adjacency creates fewer OF-blocked players, giving
+ * each top-4 player 4 IF + 1 OF + 1 BENCH (vs 3 IF + 2 OF in the late-bench
+ * schedule). Fairness preserved — first 13 sits are unique.
+ *
+ * 13-player double-sitters: ranks 9, 10, 11, 12, 13.
+ */
+const BENCH_6INN_IF_PRIORITY: Record<number, number[][]> = {
+  13: [
+    [1, 5, 9],       // Inn 1: r1 (top-1) benches first
+    [2, 6, 10],      // Inn 2: r2
+    [3, 7, 11],      // Inn 3: r3
+    [4, 13, 12],     // Inn 4: r4; r12 + r13 first sits
+    [8, 9, 11],      // Inn 5: r8 last unique first sit; r9, r11 second sits
+    [10, 12, 13],    // Inn 6: r10, r12, r13 second sits
+  ],
+};
+
+/**
  * Dynamically generate bench schedules for non-6-inning games.
  * - benchPerInning = playerCount - fieldSize
  * - totalBenchSlots = innings * benchPerInning
@@ -188,13 +208,19 @@ function generateDynamicBench(
   return bench;
 }
 
-function buildBench(players: Player[], innings: number, fieldSize: number): Set<string>[] {
+function buildBench(
+  players: Player[],
+  innings: number,
+  fieldSize: number,
+  preferIFPrioritySchedule: boolean,
+): Set<string>[] {
   const n = players.length;
   const byRank = [...players].sort((a, b) => a.rank - b.rank);
 
   // Use hardcoded schedules for 6-inning, 10-field-size games
   if (innings === 6 && fieldSize === 10) {
-    const template = BENCH_6INN[n];
+    const altTemplate = preferIFPrioritySchedule ? BENCH_6INN_IF_PRIORITY[n] : undefined;
+    const template = altTemplate ?? BENCH_6INN[n];
     if (template) {
       return template.map(ranks =>
         new Set(ranks.map(r => byRank[r - 1].id))
@@ -521,7 +547,7 @@ export function generateGameSheet(
   if (n < fieldSize) throw new Error(`Need at least ${fieldSize} present players, got ${n}.`);
   if (n > fieldSize + 3) throw new Error(`Maximum ${fieldSize + 3} present players, got ${n}.`);
 
-  const bench = buildBench(present, innings, fieldSize);
+  const bench = buildBench(present, innings, fieldSize, config.prioritizeInfieldOverLateBench);
   const posOrders = buildPositionOrders(config.fieldPositions, config.restrictions);
 
   const ofBenchAdjacency = config.positioning["of-bench-adjacency"] ?? true;
