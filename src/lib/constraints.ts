@@ -188,7 +188,7 @@ export const OPTIMIZING_CONSTRAINTS: Constraint[] = [
     label: "Prioritize top players' infield innings over late benching",
     description:
       "Top restricted players keep infield positions even if it means benching earlier and skipping outfield",
-    enabled: false,
+    enabled: true,
     editable: true,
     category: "optimizing",
   },
@@ -251,7 +251,7 @@ export const DEFAULT_CONFIG: ConstraintConfig = {
   restrictions: DEFAULT_RESTRICTIONS,
   topPlayerPriority: true,
   benchTopLate: true,
-  prioritizeInfieldOverLateBench: false,
+  prioritizeInfieldOverLateBench: true,
   onboardingComplete: false,
   teamName: "Astros",
   logoDataUrl: null,

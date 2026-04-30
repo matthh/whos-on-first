@@ -144,7 +144,7 @@ export default function Onboarding({
       restrictions,
       topPlayerPriority,
       benchTopLate,
-      prioritizeInfieldOverLateBench: false,
+      prioritizeInfieldOverLateBench: true,
       onboardingComplete: true,
       teamName,
       logoDataUrl,
