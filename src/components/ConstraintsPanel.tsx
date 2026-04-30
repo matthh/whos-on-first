@@ -340,6 +340,30 @@ export default function ConstraintsPanel({
               </div>
             </div>
           </div>
+
+          {/* Prioritize infield over late bench */}
+          <div className="flex items-start gap-3">
+            <input
+              type="checkbox"
+              checked={config.prioritizeInfieldOverLateBench}
+              onChange={() =>
+                onChange({
+                  ...config,
+                  prioritizeInfieldOverLateBench: !config.prioritizeInfieldOverLateBench,
+                })
+              }
+              className="mt-0.5 accent-[#002d62]"
+            />
+            <div>
+              <div className="text-sm font-medium text-gray-700">
+                Prioritize top players&apos; infield innings over late benching
+              </div>
+              <div className="text-xs text-gray-400">
+                Top restricted players keep infield positions even if it means
+                benching earlier and skipping outfield
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Coach Tools */}

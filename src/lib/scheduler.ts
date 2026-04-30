@@ -212,14 +212,16 @@ function computeOFBlocked(
   players: Player[],
   bench: Set<string>[],
   ofBenchAdjacency: boolean,
-  innings: number
+  innings: number,
+  topInfieldExemptRanks?: Set<number>,
 ): Map<string, Set<number>> {
   const map = new Map<string, Set<number>>();
   for (const p of players) {
     const blocked = new Set<number>();
+    const exemptFromAdjacency = topInfieldExemptRanks?.has(p.rank) ?? false;
     for (let i = 0; i < innings; i++) {
       if (bench[i].has(p.id)) { blocked.add(i); continue; }
-      if (ofBenchAdjacency) {
+      if (ofBenchAdjacency && !exemptFromAdjacency) {
         if (i > 0 && bench[i - 1].has(p.id)) blocked.add(i);
         if (i < innings - 1 && bench[i + 1].has(p.id)) blocked.add(i);
       }
@@ -227,6 +229,23 @@ function computeOFBlocked(
     map.set(p.id, blocked);
   }
   return map;
+}
+
+/**
+ * Set of ranks that get top-infield priority — exempt from min-OF,
+ * "must OF soon" reordering, and the force-OF eligibility rule. Driven
+ * by the smallest enabled IF restriction's topN (e.g. 1B top-4 → ranks 1-4).
+ */
+function getTopInfieldRanks(config: ConstraintConfig): Set<number> {
+  if (!config.prioritizeInfieldOverLateBench) return new Set();
+  const restrictedIF = config.restrictions
+    .filter(r => r.enabled && !isOF(r.position))
+    .map(r => r.topN);
+  if (restrictedIF.length === 0) return new Set();
+  const threshold = Math.min(...restrictedIF);
+  const ranks = new Set<number>();
+  for (let r = 1; r <= threshold; r++) ranks.add(r);
+  return ranks;
 }
 
 // ── Debug logging ───────────────────────────────────────────────────
@@ -298,6 +317,7 @@ function* solveInning(
   topThreshold: number,
   posOrders: ReturnType<typeof buildPositionOrders>,
   pitchCounts: Map<string, number>,
+  topInfieldRanks: Set<number>,
 ): Generator<Map<string, Position>> {
   const n = active.length;
   const ofCount_target = posOrders.ofPositions.length;
@@ -378,7 +398,8 @@ function* solveInning(
       if (isRestricted) {
         const ofPlayed = countOFInnings(player.id, sheet, inn);
         const inningsLeft = config.innings - inn;
-        const minOF = (config.positioning["min-outfield"] ?? true) ? 1 : 0;
+        const isTopInfield = topInfieldRanks.has(player.rank);
+        const minOF = !isTopInfield && (config.positioning["min-outfield"] ?? true) ? 1 : 0;
 
         if (ofPlayed < minOF && inningsLeft <= 2) {
           // MUST get an OF inning soon — try OF first
@@ -422,8 +443,12 @@ function* solveInning(
       if (ofNeeded === 0 && posIsOF) continue;
 
       // Critical: if assigning this OF-eligible player to IF would leave
-      // fewer OF-eligible players than OF slots still needed, force OF
-      if (!posIsOF && canPlayOF.has(player.id) && ofEligibleRemaining <= ofNeeded) continue;
+      // fewer OF-eligible players than OF slots still needed, force OF.
+      // Top-infield-priority players are exempt: we'd rather fail this branch
+      // and let the solver backtrack to a fillable arrangement than force a
+      // top-restricted player into OF.
+      if (!posIsOF && canPlayOF.has(player.id) && ofEligibleRemaining <= ofNeeded
+          && !topInfieldRanks.has(player.rank)) continue;
 
       // Position restrictions
       if (!canPlay(player.rank, pos, config.restrictions)) continue;
@@ -503,7 +528,8 @@ export function generateGameSheet(
   const posOrders = buildPositionOrders(config.fieldPositions, config.restrictions);
 
   const ofBenchAdjacency = config.positioning["of-bench-adjacency"] ?? true;
-  const blocked = computeOFBlocked(present, bench, ofBenchAdjacency, innings);
+  const topInfieldRanks = getTopInfieldRanks(config);
+  const blocked = computeOFBlocked(present, bench, ofBenchAdjacency, innings, topInfieldRanks);
   const minOutfield = config.positioning["min-outfield"] ?? true;
 
   // Compute the top threshold: max topN across all enabled restrictions
@@ -567,7 +593,7 @@ export function generateGameSheet(
 
     const gen = solveInning(
       active, inn, sheet, posCounts, blocked, ofCounts,
-      config, topThreshold, innPosOrders, pitchCounts
+      config, topThreshold, innPosOrders, pitchCounts, topInfieldRanks,
     );
 
     for (const assignment of gen) {
@@ -647,6 +673,7 @@ export function validateGameSheet(
 
   // Track pitch counts for max innings pitched validation
   const pitchCounts = new Map<string, number>();
+  const topInfieldRanks = getTopInfieldRanks(config);
 
   for (const p of presentPlayers) {
     let of = 0, cof = 0, mof = 0, cb = 0;
@@ -683,7 +710,7 @@ export function validateGameSheet(
       if (c >= 3) v.push(`${p.name}: plays ${pos} ${c} times (max 2)`);
 
     const bc = Array.from({length: innings}).filter((_, i) => sheet[i][p.id] === "Bench").length;
-    if (innings - bc > 0 && of === 0)
+    if (innings - bc > 0 && of === 0 && !topInfieldRanks.has(p.rank))
       v.push(`${p.name}: no outfield inning`);
   }
 
