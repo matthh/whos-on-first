@@ -535,11 +535,19 @@ function shuffle<T>(arr: T[]): T[] {
   return arr;
 }
 
+// Total wall-clock budget across all retry attempts of generateGameSheet.
+// The recursive backtracking solver can blow up combinatorially on
+// pathological roster/constraint combos and lock up the browser tab.
+// 10s leaves room for legitimately tricky-but-solvable rosters while
+// surfacing infeasible configurations as a clean error instead of a hang.
+const SOLVE_BUDGET_MS = 10_000;
+
 export function generateGameSheet(
   allPlayers: Player[],
   config: ConstraintConfig = DEFAULT_CONFIG,
   randomize: boolean = false,
-  _attempt: number = 0
+  _attempt: number = 0,
+  _deadline: number = Date.now() + SOLVE_BUDGET_MS
 ): GameSheet {
   const present = allPlayers.filter(p => !p.absent).sort((a, b) => a.rank - b.rank);
   const n = present.length;
@@ -582,6 +590,7 @@ export function generateGameSheet(
   // If inning N fails, we backtrack to inning N-1 and try its next valid assignment.
   // The per-inning solver yields multiple solutions via generator.
   function solveAll(inn: number): boolean {
+    if (Date.now() > _deadline) return false; // bail to surface as error
     if (inn >= innings) return true;
 
     const active = present.filter(p => !bench[inn].has(p.id));
@@ -648,12 +657,17 @@ export function generateGameSheet(
   }
 
   if (!solveAll(0)) {
-    // If randomizing, retry with a different shuffle
-    if (randomize && _attempt < 10) {
-      return generateGameSheet(allPlayers, config, true, _attempt + 1);
+    // If randomizing AND we still have time in the wall-clock budget, retry
+    // with a different shuffle. Bail out into the user-visible error if the
+    // overall budget is spent — better a clear error than a hung browser.
+    if (randomize && _attempt < 10 && Date.now() < _deadline) {
+      return generateGameSheet(allPlayers, config, true, _attempt + 1, _deadline);
     }
+    const exhausted = Date.now() >= _deadline;
     throw new Error(
-      "Cannot satisfy all constraints. Try adjusting player ranks or removing a constraint."
+      exhausted
+        ? `Couldn't find a valid lineup within ${SOLVE_BUDGET_MS / 1000} seconds. The constraints may be infeasible — try relaxing a position restriction or adjusting player ranks.`
+        : "Cannot satisfy all constraints. Try adjusting player ranks or removing a constraint."
     );
   }
 
