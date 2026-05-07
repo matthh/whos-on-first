@@ -25,7 +25,7 @@ interface GameSheetPreviewProps {
   innings: number;
   config: ConstraintConfig;
   onExportPDF: (opposingTeam: string, isHome: boolean, gameDate: string) => void;
-  onExportWalkUpSheet?: () => void;
+  onExportWalkUpSheet?: (opposingTeam: string, isHome: boolean, gameDate: string) => void;
   onRerun: () => void;
   onStartOver: () => void;
   onSheetChange: (sheet: GameSheet, violations: string[]) => void;
@@ -480,11 +480,11 @@ export default function GameSheetPreview({
         </button>
         {onExportWalkUpSheet && (
           <button
-            onClick={onExportWalkUpSheet}
+            onClick={() => onExportWalkUpSheet(opposingTeam.trim(), isHome, gameDate)}
             className="flex-1 py-3 rounded-lg font-bold text-sm border-2 border-[#002d62] text-[#002d62] hover:bg-[#002d62] hover:text-white transition-colors whitespace-nowrap"
-            title="Printable list of players + walk-up songs to share with parents"
+            title="Printable list of players + walk-on songs to share with parents"
           >
-            Walk-up Song Sheet
+            Walk-on Song Sheet
           </button>
         )}
         <button

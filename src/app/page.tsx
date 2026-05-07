@@ -363,13 +363,19 @@ export default function Home() {
     setActiveTab("roster");
   }, []);
 
-  const handleExportWalkUpSheet = useCallback(async () => {
+  const handleExportWalkUpSheet = useCallback(async (opposingTeam: string, isHome: boolean, gameDate: string) => {
     if (!roster || !config) return;
     const colors = await extractColorsFromDataUrl(config.logoDataUrl);
-    const doc = await generateWalkUpPDF(roster.players, config.teamName, config.logoDataUrl, colors);
+    const doc = await generateWalkUpPDF(
+      roster.players,
+      config.teamName,
+      config.logoDataUrl,
+      colors,
+      { opposingTeam, isHome, gameDate },
+    );
     const ts = new Date().toISOString().replace(/[:.]/g, "").slice(0, 15);
     const slug = config.teamName.toLowerCase().replace(/\s+/g, "_");
-    doc.save(`${slug}_walk_up_${ts}.pdf`);
+    doc.save(`${slug}_walk_on_${ts}.pdf`);
   }, [roster, config]);
 
   const handleExportPDF = useCallback(async (opposingTeam: string, isHome: boolean, gameDate: string) => {

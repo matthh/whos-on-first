@@ -14,6 +14,7 @@ export async function generateWalkUpPDF(
   teamName: string,
   logoDataUrl?: string | null,
   colors?: TeamColors,
+  matchup?: { opposingTeam: string; isHome: boolean; gameDate?: string },
 ): Promise<jsPDF> {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "letter" });
   const present = players.filter((p) => !p.absent).sort((a, b) => a.rank - b.rank);
@@ -38,7 +39,23 @@ export async function generateWalkUpPDF(
   doc.setFontSize(14);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(...primaryRgb);
-  const title = `${teamName.toUpperCase()} — WALK-UP MUSIC`;
+  const us = teamName.toUpperCase();
+  const opp = matchup?.opposingTeam.trim().toUpperCase() ?? "";
+  const matchupLabel = opp
+    ? matchup!.isHome
+      ? `${opp} AT ${us}`
+      : `${us} AT ${opp}`
+    : us;
+  const dateLabel = (() => {
+    const iso = matchup?.gameDate;
+    if (!iso) return "";
+    const [y, m, d] = iso.split("-");
+    if (!y || !m || !d) return "";
+    return `${parseInt(m, 10)}/${parseInt(d, 10)}/${y.slice(-2)}`;
+  })();
+  const title = opp && dateLabel
+    ? `${matchupLabel} ${dateLabel} - WALK-ON MUSIC`
+    : `${matchupLabel} - WALK-ON MUSIC`;
   const titleWidth = doc.getTextWidth(title);
   const centerX = (pageWidth - titleWidth) / 2;
   doc.text(title, logoDataUrl ? Math.max(titleX, centerX) : centerX, startY + 5);
