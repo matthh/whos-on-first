@@ -553,7 +553,18 @@ export function generateGameSheet(
   _attempt: number = 0,
   _deadline: number = Date.now() + SOLVE_BUDGET_MS
 ): GameSheet {
-  const present = allPlayers.filter(p => !p.absent).sort((a, b) => a.rank - b.rank);
+  // "Effective rank" = position in the sorted-present list, ignoring
+  // absent players. Mirrors the UI's eligibility-badge logic in
+  // RosterList.tsx (effectiveRanks). With Cam (r1) + Seamus (r4) absent,
+  // the present roster's effective ranks become 1..11 — so Conor
+  // (originally r5) becomes effective r3 and qualifies for 1B (top-4),
+  // matching what the UI shows. Without this, the solver evaluates
+  // restrictions against absolute rank and reports "only 2 of top 4
+  // present" even when 4 of the 11 present players ARE the top 4.
+  const present = allPlayers
+    .filter(p => !p.absent)
+    .sort((a, b) => a.rank - b.rank)
+    .map((p, i) => ({ ...p, rank: i + 1 }));
   const n = present.length;
   const fieldSize = config.fieldPositions.length;
   const innings = config.innings;
