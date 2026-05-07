@@ -728,6 +728,14 @@ export function validateGameSheet(
   const innings = config.innings;
   const fieldSize = config.fieldPositions.length;
 
+  // Re-rank to effective ranks (1..n among present) so restriction checks
+  // match the solver and the UI's eligibility badges. Without this, e.g.
+  // Conor at absolute rank 5 would be flagged at 1B (top-4) even when r1
+  // and r4 are absent and Conor is the effective r3.
+  presentPlayers = [...presentPlayers]
+    .sort((a, b) => a.rank - b.rank)
+    .map((p, i) => ({ ...p, rank: i + 1 }));
+
   for (let i = 0; i < innings; i++) {
     const active = presentPlayers.filter(p => sheet[i][p.id] && sheet[i][p.id] !== "Bench");
 
