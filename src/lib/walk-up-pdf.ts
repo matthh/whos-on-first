@@ -127,7 +127,7 @@ export async function generateWalkUpPDF(
       fontSize,
     },
     columnStyles: {
-      0: { halign: "center", cellWidth: 10, fontStyle: "bold" },
+      0: { halign: "center", cellWidth: 14, fontStyle: "bold" },
       1: { halign: "left", cellWidth: 50, fontStyle: "bold" },
       2: { halign: "left" },
     },
