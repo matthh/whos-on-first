@@ -423,11 +423,22 @@ function* solveInning(
 
       if (isRestricted) {
         const ofPlayed = countOFInnings(player.id, sheet, inn);
-        const inningsLeft = config.innings - inn;
         const minOF = (config.positioning["min-outfield"] ?? true) ? 1 : 0;
+        // Count OF-eligible innings remaining INCLUDING this one. Using
+        // raw "innings left" overstates slack when the player will be
+        // OF-blocked in upcoming innings (bench-adjacency), and led to
+        // top-restricted players starving for OF altogether (Jack ended
+        // up with 1B/SS/2B/3B/P/Bench because his deadline really was
+        // this inning, not 2 innings later).
+        let ofEligibleFromHere = 0;
+        for (let j = inn; j < config.innings; j++) {
+          if (!blocked.get(player.id)!.has(j)) ofEligibleFromHere++;
+        }
+        const ofStillNeeded = minOF - ofPlayed;
 
-        if (ofPlayed < minOF && inningsLeft <= 2) {
-          // MUST get an OF inning soon — try OF first
+        if (ofPlayed < minOF && ofEligibleFromHere <= ofStillNeeded) {
+          // MUST get an OF inning here (or one of the few remaining
+          // eligible innings) — try OF first.
           const ofOnly = posOrders.premiumIF.filter(p => isOF(p));
           const ifOnly = posOrders.premiumIF.filter(p => !isOF(p));
           posOrder = [...ofOnly, ...ifOnly];
@@ -630,7 +641,25 @@ export function generateGameSheet(
   // The per-inning solver yields multiple solutions via generator.
   function solveAll(inn: number): boolean {
     if (Date.now() > _deadline) return false; // bail to surface as error
-    if (inn >= innings) return true;
+    if (inn >= innings) {
+      // Hard min-OF check at the terminal node. Without this the solver
+      // could happily produce a sheet where a top-restricted player
+      // benches at the end and never picked up an OF inning (because
+      // OF-bench-adjacency blocks the second-to-last inning) — Jack's
+      // case in the user's screenshot. The per-inning heuristics try to
+      // avoid this but only the terminal check guarantees correctness.
+      if (minOutfield) {
+        for (const p of present) {
+          // Skip players who never played (somehow benched all innings)
+          let played = false;
+          for (let i = 0; i < innings; i++) {
+            if (sheet[i][p.id] && sheet[i][p.id] !== "Bench") { played = true; break; }
+          }
+          if (played && (ofCounts.get(p.id) ?? 0) < 1) return false;
+        }
+      }
+      return true;
+    }
 
     const active = present.filter(p => !bench[inn].has(p.id));
 
