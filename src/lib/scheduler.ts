@@ -535,6 +535,10 @@ function shuffle<T>(arr: T[]): T[] {
   return arr;
 }
 
+function enabledRestrictionsForFeasibility(config: ConstraintConfig) {
+  return config.restrictions.filter(r => r.enabled);
+}
+
 // Total wall-clock budget across all retry attempts of generateGameSheet.
 // The recursive backtracking solver can blow up combinatorially on
 // pathological roster/constraint combos and lock up the browser tab.
@@ -556,6 +560,30 @@ export function generateGameSheet(
 
   if (n < fieldSize) throw new Error(`Need at least ${fieldSize} present players, got ${n}.`);
   if (n > fieldSize + 3) throw new Error(`Maximum ${fieldSize + 3} present players, got ${n}.`);
+
+  // Feasibility pre-check: each enabled topN restriction caps how many
+  // distinct players can fill that position. With max-2-per-position the
+  // total coverage is (eligible × 2) which must be ≥ innings, otherwise
+  // no valid lineup can exist and the solver would just thrash. Fail fast
+  // with a specific message instead of letting it spin for the wall-clock
+  // budget. (Concretely: with both r1 + r2 absent and 1B top-4, only 2
+  // top-4 players are present → 2×2=4 < 6 innings → infeasible.)
+  const max2PerPos = config.positioning["max-2-per-position"] ?? true;
+  if (max2PerPos) {
+    for (const r of enabledRestrictionsForFeasibility(config)) {
+      const eligibleCount = present.filter(p => p.rank <= r.topN).length;
+      const maxCoverage = eligibleCount * 2;
+      if (maxCoverage < innings) {
+        const missing = innings - maxCoverage;
+        throw new Error(
+          `Can't fill ${r.position} for all ${innings} innings: only ${eligibleCount} of the top ${r.topN} are present, ` +
+          `which covers ${maxCoverage} innings under max-2-per-position. ` +
+          `Need at least ${Math.ceil(innings / 2)} top-${r.topN} players present, or relax the ${r.position} restriction (topN > ${r.topN}), ` +
+          `or disable max-2-per-position. Short by ${missing} ${r.position} inning${missing !== 1 ? 's' : ''}.`
+        );
+      }
+    }
+  }
 
   const bench = buildBench(present, innings, fieldSize, config.prioritizeInfieldOverLateBench);
   const posOrders = buildPositionOrders(config.fieldPositions, config.restrictions);
