@@ -2,6 +2,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { Player } from "./types";
 import { TeamColors, hexToRgb } from "./colors";
+import { loadPennant } from "./pdf";
 
 /**
  * Printable walk-up song sheet — single-page handout for parents.
@@ -21,7 +22,20 @@ export async function generateWalkUpPDF(
   const pageWidth = doc.internal.pageSize.getWidth();
 
   // Compact header so the table can claim almost the entire page.
-  const startY = 10;
+  let startY = 10;
+
+  // Pennant logo — centered at top, matches the lineup printout.
+  const pennant = await loadPennant();
+  if (pennant) {
+    try {
+      const logoW = 60;
+      const logoH = logoW * (1292 / 2521); // exact pixel ratio: height = width × 0.5125
+      doc.addImage(pennant, "PNG", (pageWidth - logoW) / 2, startY, logoW, logoH);
+      startY += logoH + 3;
+    } catch {
+      // skip
+    }
+  }
 
   let titleX = 14;
   if (logoDataUrl) {

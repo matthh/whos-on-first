@@ -5,11 +5,12 @@ import { TeamColors, hexToRgb } from "./colors";
 
 /**
  * Load the pennant logo as a data URL for embedding in the PDF.
- * Called once and cached.
+ * Called once and cached. Exported so other PDF generators (walk-up,
+ * etc.) get the same look without duplicating the fetch + cache.
  */
 let pennantCache: string | null = null;
 
-async function loadPennant(): Promise<string | null> {
+export async function loadPennant(): Promise<string | null> {
   if (pennantCache) return pennantCache;
   try {
     const res = await fetch("/logo.png");
