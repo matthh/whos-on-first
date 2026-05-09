@@ -18,7 +18,9 @@ export async function generateWalkUpPDF(
   matchup?: { opposingTeam: string; isHome: boolean; gameDate?: string },
 ): Promise<jsPDF> {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "letter" });
-  const present = players.filter((p) => !p.absent).sort((a, b) => a.rank - b.rank);
+  // Include absent players too — parents need to see whose songs to skip,
+  // not have them silently disappear. Absent rows are shaded grey below.
+  const ordered = [...players].sort((a, b) => a.rank - b.rank);
   const pageWidth = doc.internal.pageSize.getWidth();
 
   // Compact header so the table can claim almost the entire page.
@@ -91,7 +93,7 @@ export async function generateWalkUpPDF(
   const HEADER_BG: [number, number, number] = primaryRgb as [number, number, number];
 
   const headers = ["#", "PLAYER", "WALK-UP SONG"];
-  const rows = present.map((p, i) => {
+  const rows = ordered.map((p, i) => {
     const song = p.walkOnSong;
     let cell = "";
     if (song) {
@@ -111,7 +113,7 @@ export async function generateWalkUpPDF(
   const availableForBody = pageHeight - tableTop - bottomMargin - headerRowH;
   const idealRowH = 13;
   const minRowH = 6;
-  const fitRowH = Math.max(minRowH, Math.min(idealRowH, availableForBody / Math.max(1, present.length)));
+  const fitRowH = Math.max(minRowH, Math.min(idealRowH, availableForBody / Math.max(1, ordered.length)));
   const fontSize = fitRowH < 8 ? 8 : fitRowH < 10 ? 9 : 11;
 
   autoTable(doc, {
@@ -146,7 +148,15 @@ export async function generateWalkUpPDF(
       2: { halign: "left" },
     },
     didParseCell(data) {
-      if (data.section === "body" && data.column.index === 2) {
+      if (data.section !== "body") return;
+      const player = ordered[data.row.index];
+      if (player?.absent) {
+        // Whole row shaded medium grey — parent at-a-glance "skip this song".
+        data.cell.styles.fillColor = [200, 200, 200];
+        data.cell.styles.textColor = [110, 110, 110];
+        return;
+      }
+      if (data.column.index === 2) {
         const raw = String(data.cell.raw || "");
         if (raw.startsWith("(suggested) ")) {
           data.cell.styles.fontStyle = "italic";
