@@ -366,12 +366,21 @@ export default function Home() {
   const handleExportWalkUpSheet = useCallback(async (opposingTeam: string, isHome: boolean, gameDate: string) => {
     if (!roster || !config) return;
     const colors = await extractColorsFromDataUrl(config.logoDataUrl);
+    // Pull the active team's walk-on playlist URL — drives the QR code
+    // on the printout. /api/teams already returns it on each row.
+    let walkOnPlaylistUrl: string | null = null;
+    try {
+      const teamsRes = await fetch("/api/teams").then((r) => r.ok ? r.json() : null);
+      const active = (teamsRes?.teams || []).find((t: { id: number; walkOnPlaylistUrl?: string | null }) => t.id === teamsRes?.activeTeamId);
+      walkOnPlaylistUrl = active?.walkOnPlaylistUrl ?? null;
+    } catch { /* PDF still generates with the default URL */ }
     const doc = await generateWalkUpPDF(
       roster.players,
       config.teamName,
       config.logoDataUrl,
       colors,
       { opposingTeam, isHome, gameDate },
+      walkOnPlaylistUrl,
     );
     const ts = new Date().toISOString().replace(/[:.]/g, "").slice(0, 15);
     const slug = config.teamName.toLowerCase().replace(/\s+/g, "_");

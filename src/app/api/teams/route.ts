@@ -19,7 +19,12 @@ export async function GET(request: NextRequest) {
   }
 
   const rows = await db
-    .select({ id: teams.id, name: teams.name, createdAt: teams.createdAt })
+    .select({
+      id: teams.id,
+      name: teams.name,
+      createdAt: teams.createdAt,
+      walkOnPlaylistUrl: teams.walkOnPlaylistUrl,
+    })
     .from(teams)
     .where(eq(teams.userId, userId))
     .orderBy(teams.createdAt);

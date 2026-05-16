@@ -36,6 +36,10 @@ export const teams = pgTable("teams", {
   // the same playlist every game instead of creating duplicates. Cleared
   // when the user disconnects Spotify or renames the team.
   spotifyPlaylistId: text("spotify_playlist_id"),
+  // Coach-pasted Spotify playlist URL. Used as the QR code target on the
+  // walk-on music printout. Independent of spotify_playlist_id so a coach
+  // who hasn't connected Spotify can still drop in any public playlist.
+  walkOnPlaylistUrl: text("walk_on_playlist_url"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (t) => ({
   userNameUniq: uniqueIndex("teams_user_id_name_uniq").on(t.userId, t.name),

@@ -53,6 +53,24 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
     updates.name = name;
   }
 
+  if (body.walkOnPlaylistUrl !== undefined) {
+    const raw = body.walkOnPlaylistUrl;
+    if (raw === null || raw === "") {
+      updates.walkOnPlaylistUrl = null;
+    } else if (typeof raw === "string") {
+      const trimmed = raw.trim().slice(0, 500);
+      // Light validation — must look like a Spotify playlist link. We accept
+      // share URLs with ?si=... query strings; the QR renders the URL as-is.
+      if (!/^https?:\/\/(open\.)?spotify\.com\/playlist\/[A-Za-z0-9?=&._-]+/i.test(trimmed)) {
+        return NextResponse.json(
+          { error: "Must be a Spotify playlist URL (e.g. https://open.spotify.com/playlist/...)" },
+          { status: 400 }
+        );
+      }
+      updates.walkOnPlaylistUrl = trimmed;
+    }
+  }
+
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ ok: true, team });
   }

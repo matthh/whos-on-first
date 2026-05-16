@@ -6,7 +6,7 @@ import ConstraintsPanel from "@/components/ConstraintsPanel";
 import SpotifyConnect from "@/components/SpotifyConnect";
 import { ConstraintConfig, DEFAULT_CONFIG, migrateRestrictions } from "@/lib/constraints";
 
-type Team = { id: number; name: string; createdAt?: string };
+type Team = { id: number; name: string; createdAt?: string; walkOnPlaylistUrl?: string | null };
 
 export default function SettingsPage() {
   const [teams, setTeams] = useState<Team[]>([]);
@@ -24,6 +24,11 @@ export default function SettingsPage() {
 
   const logoInputRef = useRef<HTMLInputElement>(null);
   const [logoUploading, setLogoUploading] = useState(false);
+
+  const [playlistUrl, setPlaylistUrl] = useState("");
+  const [playlistErr, setPlaylistErr] = useState<string | null>(null);
+  const [playlistSaving, setPlaylistSaving] = useState(false);
+  const [playlistSaved, setPlaylistSaved] = useState(false);
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initialLoadDone = useRef(false);
@@ -59,6 +64,8 @@ export default function SettingsPage() {
       setActiveTeamId(teamsRes.activeTeamId ?? null);
       const active = (teamsRes.teams || []).find((t: Team) => t.id === teamsRes.activeTeamId);
       setActiveTeamName(active?.name || "");
+      setPlaylistUrl(active?.walkOnPlaylistUrl || "");
+      setPlaylistErr(null);
       setConfig(mergeConfig(rosterRes?.config || null));
     } finally {
       setLoading(false);
@@ -278,6 +285,58 @@ export default function SettingsPage() {
       <section>
         <h2 className="text-lg font-semibold mb-3">Spotify</h2>
         <SpotifyConnect />
+        <div className="mt-4 border-t border-gray-200 pt-4">
+          <label className="block text-sm font-medium text-gray-800 mb-1">
+            Walk-on playlist URL <span className="text-xs font-normal text-gray-500">(for the QR on the printout)</span>
+          </label>
+          <p className="text-[12px] text-gray-500 mb-2">
+            Paste any public Spotify playlist URL. We&apos;ll render it as a QR code on the walk-on music sheet so parents can scan and play it.
+          </p>
+          <div className="flex gap-2 items-start">
+            <input
+              type="url"
+              inputMode="url"
+              placeholder="https://open.spotify.com/playlist/..."
+              value={playlistUrl}
+              onChange={(e) => { setPlaylistUrl(e.target.value); setPlaylistErr(null); setPlaylistSaved(false); }}
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm font-mono"
+            />
+            <button
+              type="button"
+              disabled={!activeTeamId || playlistSaving}
+              onClick={async () => {
+                if (!activeTeamId) return;
+                setPlaylistSaving(true);
+                setPlaylistErr(null);
+                setPlaylistSaved(false);
+                try {
+                  const res = await fetch(`/api/teams/${activeTeamId}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ walkOnPlaylistUrl: playlistUrl.trim() || null }),
+                  });
+                  const data = await res.json();
+                  if (!res.ok) {
+                    setPlaylistErr(data?.error || "Failed to save");
+                  } else {
+                    setPlaylistSaved(true);
+                    setTeams((prev) => prev.map((t) => t.id === activeTeamId ? { ...t, walkOnPlaylistUrl: data.team?.walkOnPlaylistUrl ?? null } : t));
+                    setTimeout(() => setPlaylistSaved(false), 2000);
+                  }
+                } catch (err) {
+                  setPlaylistErr(err instanceof Error ? err.message : "Failed to save");
+                } finally {
+                  setPlaylistSaving(false);
+                }
+              }}
+              className="px-4 py-2 rounded-md text-sm font-semibold bg-[#002d62] text-white hover:bg-[#001e44] disabled:opacity-50"
+            >
+              {playlistSaving ? "Saving…" : "Save"}
+            </button>
+          </div>
+          {playlistErr && <p className="text-xs text-red-600 mt-1">{playlistErr}</p>}
+          {playlistSaved && <p className="text-xs text-green-600 mt-1">Saved.</p>}
+        </div>
       </section>
 
       {/* Teams list */}

@@ -5,11 +5,10 @@ import { Player } from "./types";
 import { TeamColors, hexToRgb } from "./colors";
 import { loadPennant } from "./pdf";
 
-// Team's walk-on playlist on Spotify. Embedded as a QR code on the
-// printout so parents can scan and play it back-to-back. Hardcoded for
-// now — if we ever support multiple teams with separate playlists this
-// moves to team config.
-const WALK_ON_PLAYLIST_URL = "https://open.spotify.com/playlist/4Af5O80Im8VojMKfaYSJj3";
+// Fallback playlist URL when the team hasn't set their own — keeps the
+// QR code useful on day-1 deploys before any coach has filled in their
+// Spotify playlist in settings.
+const DEFAULT_WALK_ON_PLAYLIST_URL = "https://open.spotify.com/playlist/4Af5O80Im8VojMKfaYSJj3";
 
 /**
  * Printable walk-up song sheet — single-page handout for parents.
@@ -23,6 +22,7 @@ export async function generateWalkUpPDF(
   logoDataUrl?: string | null,
   colors?: TeamColors,
   matchup?: { opposingTeam: string; isHome: boolean; gameDate?: string },
+  walkOnPlaylistUrl?: string | null,
 ): Promise<jsPDF> {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "letter" });
   // Include absent players too — parents need to see whose songs to skip,
@@ -33,13 +33,16 @@ export async function generateWalkUpPDF(
   // Compact header so the table can claim almost the entire page.
   let startY = 10;
 
-  // Pennant logo — centered at top, matches the lineup printout.
+  // Pennant logo — centered at top, matches the lineup printout. Capture
+  // its vertical midline so the QR code on the right can align to it.
+  let pennantMidY: number | null = null;
   const pennant = await loadPennant();
   if (pennant) {
     try {
       const logoW = 60;
       const logoH = logoW * (1292 / 2521); // exact pixel ratio: height = width × 0.5125
       doc.addImage(pennant, "PNG", (pageWidth - logoW) / 2, startY, logoW, logoH);
+      pennantMidY = startY + logoH / 2;
       startY += logoH + 3;
     } catch {
       // skip
@@ -97,26 +100,26 @@ export async function generateWalkUpPDF(
     { align: "center" },
   );
 
-  // Spotify-playlist QR — bottom-right of the page so it doesn't fight
-  // the table. Generated as a PNG data URL, sized to read easily from
-  // ~12 inches with a phone camera.
+  // Spotify-playlist QR — top-right, vertically centered on the pennant
+  // logo's midline so the page has a tidy balanced header (pennant in
+  // the middle, QR on the right edge). Falls back to the page top if
+  // the pennant didn't load.
   try {
-    const qrDataUrl = await QRCode.toDataURL(WALK_ON_PLAYLIST_URL, {
+    const playlistUrl = walkOnPlaylistUrl || DEFAULT_WALK_ON_PLAYLIST_URL;
+    const qrDataUrl = await QRCode.toDataURL(playlistUrl, {
       margin: 1,
       width: 200,
       color: { dark: "#000000", light: "#ffffff" },
     });
     const qrSize = 24; // mm
-    const pageH = doc.internal.pageSize.getHeight();
     const qrX = pageWidth - qrSize - 10;
-    const qrY = pageH - qrSize - 12;
+    const qrCenter = pennantMidY ?? 22;
+    const qrY = qrCenter - qrSize / 2;
     doc.addImage(qrDataUrl, "PNG", qrX, qrY, qrSize, qrSize);
     doc.setFontSize(7);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(80, 80, 80);
-    doc.text("SCAN FOR", qrX + qrSize / 2, qrY - 3, { align: "center" });
     doc.setFont("helvetica", "normal");
-    doc.text("Spotify playlist", qrX + qrSize / 2, qrY + qrSize + 4, { align: "center" });
+    doc.setTextColor(110, 110, 110);
+    doc.text("Spotify playlist", qrX + qrSize / 2, qrY + qrSize + 3, { align: "center" });
   } catch {
     // QR is decorative; skip if generation fails.
   }
