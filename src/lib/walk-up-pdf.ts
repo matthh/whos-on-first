@@ -1,8 +1,15 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import QRCode from "qrcode";
 import { Player } from "./types";
 import { TeamColors, hexToRgb } from "./colors";
 import { loadPennant } from "./pdf";
+
+// Team's walk-on playlist on Spotify. Embedded as a QR code on the
+// printout so parents can scan and play it back-to-back. Hardcoded for
+// now — if we ever support multiple teams with separate playlists this
+// moves to team config.
+const WALK_ON_PLAYLIST_URL = "https://open.spotify.com/playlist/4Af5O80Im8VojMKfaYSJj3";
 
 /**
  * Printable walk-up song sheet — single-page handout for parents.
@@ -89,6 +96,30 @@ export async function generateWalkUpPDF(
     startY + 13,
     { align: "center" },
   );
+
+  // Spotify-playlist QR — bottom-right of the page so it doesn't fight
+  // the table. Generated as a PNG data URL, sized to read easily from
+  // ~12 inches with a phone camera.
+  try {
+    const qrDataUrl = await QRCode.toDataURL(WALK_ON_PLAYLIST_URL, {
+      margin: 1,
+      width: 200,
+      color: { dark: "#000000", light: "#ffffff" },
+    });
+    const qrSize = 24; // mm
+    const pageH = doc.internal.pageSize.getHeight();
+    const qrX = pageWidth - qrSize - 10;
+    const qrY = pageH - qrSize - 12;
+    doc.addImage(qrDataUrl, "PNG", qrX, qrY, qrSize, qrSize);
+    doc.setFontSize(7);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(80, 80, 80);
+    doc.text("SCAN FOR", qrX + qrSize / 2, qrY - 3, { align: "center" });
+    doc.setFont("helvetica", "normal");
+    doc.text("Spotify playlist", qrX + qrSize / 2, qrY + qrSize + 4, { align: "center" });
+  } catch {
+    // QR is decorative; skip if generation fails.
+  }
 
   const HEADER_BG: [number, number, number] = primaryRgb as [number, number, number];
 
