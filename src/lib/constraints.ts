@@ -70,6 +70,17 @@ export interface ConstraintConfig {
   topPlayerPriority: boolean;
   benchTopLate: boolean;
   prioritizeInfieldOverLateBench: boolean;
+  /**
+   * Playoff mode: regular-season games have a 5-run-per-inning cap in the
+   * last inning, so the manager can usually let weaker fielding through it.
+   * In the playoffs that cap is lifted, so the team needs to be at full
+   * strength in the final inning. Setting this flag swaps in a bench
+   * schedule that:
+   *   - never puts a top-6 player on bench in the final inning, AND
+   *   - staggers top-6 players across innings so no two adjacent-ranked
+   *     top-6 (e.g., #1 + #2) bench in the same inning.
+   */
+  playoffMode: boolean;
   onboardingComplete: boolean;
   teamName: string;
   logoDataUrl: string | null;
@@ -252,6 +263,7 @@ export const DEFAULT_CONFIG: ConstraintConfig = {
   topPlayerPriority: true,
   benchTopLate: true,
   prioritizeInfieldOverLateBench: true,
+  playoffMode: false,
   onboardingComplete: false,
   teamName: "Astros",
   logoDataUrl: null,

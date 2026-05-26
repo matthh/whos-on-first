@@ -364,6 +364,28 @@ export default function ConstraintsPanel({
               </div>
             </div>
           </div>
+
+          {/* Playoff mode */}
+          <div className="flex items-start gap-3">
+            <input
+              type="checkbox"
+              checked={config.playoffMode}
+              onChange={() =>
+                onChange({ ...config, playoffMode: !config.playoffMode })
+              }
+              className="mt-0.5 accent-[#002d62]"
+            />
+            <div>
+              <div className="text-sm font-medium text-gray-700">
+                Playoff mode (full strength final inning)
+              </div>
+              <div className="text-xs text-gray-400">
+                No 5-run cap in playoffs, so no top-6 player sits in the final
+                inning. Also staggers top-6 across innings so no two adjacent
+                top-6 ranks (#1+#2, #3+#4, #5+#6) bench together.
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Coach Tools */}

@@ -120,6 +120,49 @@ const BENCH_6INN_IF_PRIORITY: Record<number, number[][]> = {
 };
 
 /**
+ * Playoff-mode bench schedules. Override BENCH_6INN / BENCH_6INN_IF_PRIORITY
+ * when config.playoffMode is set. Two extra constraints on top of the
+ * standard rules:
+ *   - No top-6 player on bench in the final inning (lifted 5-run cap means
+ *     we want our best fielders in for the closer).
+ *   - Stagger top-6 across innings so no two adjacent-ranked top-6 (#1+#2,
+ *     #3+#4, #5+#6) bench together — they get separated to avoid
+ *     compounding a fielding gap.
+ *
+ * The math is tight: with 12 players there are 6 top-6 to fit across 5
+ * non-final innings, so the last available pair (#5 and #6) must double
+ * up somewhere — we put them in inning 1 (earliest, least costly).
+ *
+ * 11-player playoff: the default schedule sat #6 in inning 6. Swap so
+ * #6 sits in inning 5 and #7 (bottom-6) sits inning 6 instead.
+ *
+ * 13-player playoff: the default schedule already keeps top-6 out of
+ * inning 6 (which has ranks 9, 10, 12 — all bottom-6) AND already
+ * staggers — top-6 ranks 1-6 each sit in exactly one of innings 1-5
+ * with at most one top-6 per inning. So we reuse BENCH_6INN[13]. The
+ * IF-priority variant also satisfies both rules, so playoff mode is a
+ * no-op for 13-player teams.
+ */
+const BENCH_6INN_PLAYOFF: Record<number, number[][]> = {
+  11: [
+    [11],            // Inn 1
+    [10],            // Inn 2
+    [9],             // Inn 3
+    [8],             // Inn 4
+    [6],             // Inn 5: rank 6 (top-6) — latest possible slot
+    [7],             // Inn 6: rank 7 (bottom-6) — keeps top-6 off the bench
+  ],
+  12: [
+    [5, 6],          // Inn 1: ranks 5 & 6 double up — last-resort pair
+    [4, 12],         // Inn 2: rank 4 (top-6) + rank 12 (bottom-6)
+    [3, 11],         // Inn 3: rank 3 + rank 11
+    [2, 10],         // Inn 4: rank 2 + rank 10
+    [1, 9],          // Inn 5: rank 1 (best) sits latest of the top-6
+    [8, 7],          // Inn 6: ranks 7 & 8 (both bottom-6) — no top-6 on bench
+  ],
+};
+
+/**
  * Dynamically generate bench schedules for non-6-inning games.
  * - benchPerInning = playerCount - fieldSize
  * - totalBenchSlots = innings * benchPerInning
@@ -215,14 +258,18 @@ function buildBench(
   innings: number,
   fieldSize: number,
   preferIFPrioritySchedule: boolean,
+  playoffMode: boolean,
 ): Set<string>[] {
   const n = players.length;
   const byRank = [...players].sort((a, b) => a.rank - b.rank);
 
-  // Use hardcoded schedules for 6-inning, 10-field-size games
+  // Use hardcoded schedules for 6-inning, 10-field-size games. Playoff mode
+  // wins over the IF-priority variant — its constraints are strictly tighter
+  // (no top-6 in final inning + stagger).
   if (innings === 6 && fieldSize === 10) {
+    const playoffTemplate = playoffMode ? BENCH_6INN_PLAYOFF[n] : undefined;
     const altTemplate = preferIFPrioritySchedule ? BENCH_6INN_IF_PRIORITY[n] : undefined;
-    const template = altTemplate ?? BENCH_6INN[n];
+    const template = playoffTemplate ?? altTemplate ?? BENCH_6INN[n];
     if (template) {
       return template.map(ranks =>
         new Set(ranks.map(r => byRank[r - 1].id))
@@ -607,7 +654,7 @@ export function generateGameSheet(
     }
   }
 
-  const bench = buildBench(present, innings, fieldSize, config.prioritizeInfieldOverLateBench);
+  const bench = buildBench(present, innings, fieldSize, config.prioritizeInfieldOverLateBench, config.playoffMode);
   const posOrders = buildPositionOrders(config.fieldPositions, config.restrictions);
 
   const ofBenchAdjacency = config.positioning["of-bench-adjacency"] ?? true;
