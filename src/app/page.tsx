@@ -174,8 +174,7 @@ export default function Home() {
   const handleAddPlayer = useCallback(() => {
     updatePlayers((players) => {
       const maxRank = players.length > 0 ? Math.max(...players.map((p) => p.rank)) : 0;
-      const maxId = players.length > 0 ? Math.max(...players.map((p) => parseInt(p.id))) : 0;
-      const newId = String(maxId + 1);
+      const newId = crypto.randomUUID();
       setTimeout(() => setFocusPlayerId(newId), 0);
       return [
         ...players,

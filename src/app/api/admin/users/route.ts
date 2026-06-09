@@ -18,7 +18,23 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const allUsers = await db.select().from(users);
+  // Select only non-sensitive columns — never expose Spotify OAuth tokens.
+  const allUsers = await db
+    .select({
+      id: users.id,
+      email: users.email,
+      name: users.name,
+      role: users.role,
+      status: users.status,
+      authProvider: users.authProvider,
+      authProviderId: users.authProviderId,
+      activeTeamId: users.activeTeamId,
+      createdAt: users.createdAt,
+      lastLoginAt: users.lastLoginAt,
+      spotifyUserId: users.spotifyUserId,
+      spotifyDisplayName: users.spotifyDisplayName,
+    })
+    .from(users);
   return NextResponse.json({ users: allUsers });
 }
 

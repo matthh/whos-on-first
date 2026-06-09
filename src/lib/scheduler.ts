@@ -417,13 +417,6 @@ function* solveInning(
     return a.rank - b.rank; // same OF eligibility: best rank first
   });
 
-  if (inn === 0) {
-    console.log(`[SOLVER] Inning 1 player order: ${ordered.map(p => `${p.name}(r${p.rank}${canPlayOF.has(p.id) ? '' : ' OF-BLOCKED'})`).join(', ')}`);
-    console.log(`[SOLVER] premiumIF order: ${posOrders.premiumIF.join(', ')}`);
-    console.log(`[SOLVER] ofFirst order: ${posOrders.ofFirst.join(', ')}`);
-    console.log(`[SOLVER] topThreshold: ${topThreshold}`);
-  }
-
   const result = new Map<string, Position>();
   const used = new Set<Position>();
   const assignedToOF = new Set<string>(); // track who we put in OF

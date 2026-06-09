@@ -40,9 +40,29 @@ export async function POST(request: NextRequest) {
   const body = await request.json();
   const { date, players } = body;
 
+  if (typeof date !== "string" || date.trim().length === 0 || date.length > 100) {
+    return NextResponse.json({ error: "Invalid date" }, { status: 400 });
+  }
+  if (!Array.isArray(players) || players.length > 20) {
+    return NextResponse.json({ error: "Invalid players: must be array with max 20 items" }, { status: 400 });
+  }
+  for (const p of players) {
+    if (
+      typeof p.id !== "string" ||
+      typeof p.name !== "string" ||
+      typeof p.rank !== "number" ||
+      typeof p.absent !== "boolean"
+    ) {
+      return NextResponse.json(
+        { error: "Invalid player entry: each must have id (string), name (string), rank (number), absent (boolean)" },
+        { status: 400 },
+      );
+    }
+  }
+
   const [inserted] = await db
     .insert(gameHistory)
-    .values({ userId, teamId: team.id, date, players })
+    .values({ userId, teamId: team.id, date: date.trim(), players })
     .returning();
   return NextResponse.json({ ok: true, id: inserted.id });
 }

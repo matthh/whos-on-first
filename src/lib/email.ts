@@ -1,6 +1,6 @@
 import { signOAuthState } from "./auth";
 
-const ADMIN_EMAIL = "matthh@gmail.com";
+const ADMIN_EMAIL = process.env.ADMIN_NOTIFICATION_EMAIL || "matthh@gmail.com";
 
 async function sendEmail(to: string, subject: string, html: string) {
   const apiKey = process.env.RESEND_API_KEY;
