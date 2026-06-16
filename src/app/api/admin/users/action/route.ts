@@ -47,6 +47,10 @@ export async function GET(request: NextRequest) {
   return new Response(html("Unknown action", "error"), { status: 400, headers: { "Content-Type": "text/html" } });
 }
 
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
 function html(message: string, type: "success" | "error" | "info") {
   const color = type === "success" ? "#48bb78" : type === "error" ? "#e53e3e" : "#f5c542";
   return `<!DOCTYPE html>
@@ -54,7 +58,7 @@ function html(message: string, type: "success" | "error" | "info") {
 <body style="margin:0;padding:60px 24px;background:#f8f9fa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#333;text-align:center;">
   <div style="max-width:400px;margin:0 auto;">
     <h1 style="color:#002d62;font-size:20px;">Who's On First</h1>
-    <p style="font-size:16px;color:${color};margin:24px 0;">${message}</p>
+    <p style="font-size:16px;color:${color};margin:24px 0;">${escapeHtml(message)}</p>
     <a href="/admin" style="color:#002d62;font-size:13px;">Go to Admin Panel</a>
   </div>
 </body></html>`;

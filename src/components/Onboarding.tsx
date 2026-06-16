@@ -108,8 +108,7 @@ export default function Onboarding({
   const handleAddPlayer = useCallback(() => {
     setPlayers((prev) => {
       const maxRank = prev.length > 0 ? Math.max(...prev.map((p) => p.rank)) : 0;
-      const maxId = prev.length > 0 ? Math.max(...prev.map((p) => parseInt(p.id))) : 0;
-      const newId = String(maxId + 1);
+      const newId = crypto.randomUUID();
       // Set focus to the new player after render
       setTimeout(() => setFocusPlayerId(newId), 0);
       return [

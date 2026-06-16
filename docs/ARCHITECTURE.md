@@ -1,6 +1,6 @@
 # Who's On First — Architecture
 
-**Last reviewed: 2026-06-09**
+**Last reviewed: 2026-06-16**
 
 ## Purpose
 
@@ -71,6 +71,8 @@ page.tsx (handleGenerate)
 ```
 
 The solver uses hardcoded bench schedules for the standard 6-inning / 10-field-size case and a dynamic generator for non-standard configurations. A 10-second wall-clock budget prevents browser hangs on infeasible constraints.
+
+**Playoff mode** (`config.playoffMode`) selects alternate bench schedules (`BENCH_6INN_PLAYOFF`) for 11- and 12-player rosters that: (1) keep all top-6 ranked players off the bench in the final inning, and (2) stagger top-6 sits so no two adjacent ranks sit together. 13-player teams already satisfy both rules with the default schedule.
 
 ---
 
@@ -170,16 +172,16 @@ The solver uses hardcoded bench schedules for the standard 6-inning / 10-field-s
 
 ## Tech debt
 
-1. **`history` POST has no input validation** — `date` and `players` are written to the DB directly from the request body without type-checking or sanitization. A malicious user could store arbitrary JSON in `game_history.players`.
-2. **Admin `GET /api/admin/users` returns all columns** including Spotify access/refresh tokens. These are sensitive credentials and should be stripped before returning to the admin UI.
-3. **`logoDataUrl` has no size limit** in the roster `PUT` route — a large base64 image can be stored without bounds.
-4. **`constraint_overrides` table** exists in schema and migrations but is completely unused. Dead code at the DB layer.
-5. **Debug `console.log` statements in production** — `lib/scheduler.ts` has four `console.log` calls in `solveInning` (inning 1 player order, position order, topThreshold). These fire on every roster generation in prod and leak internal player names/ranks to server logs.
-6. **Fragile player ID generation** — `handleAddPlayer` in `page.tsx` sets `id = String(maxId + 1)` using `parseInt` on existing IDs. Non-numeric IDs (e.g., from an imported roster) would produce NaN and all subsequent players would get id `"1"`. IDs should be `crypto.randomUUID()`.
-7. **`storage.ts` is stale** — `loadRoster` / `saveRoster` check `typeof window` for SSR safety but the module is still imported in lib context. Recommend pruning or converting to pure utility functions.
-8. **`practice-pdf.ts` duplicates `loadPennant`** — it has its own local copy of the function with its own cache, instead of importing the exported version from `pdf.ts`.
-9. **No rate limiting** on `/api/spotify/sync-playlist` or `/api/practice/generate-station` — both make expensive third-party calls (Spotify API, Anthropic) without any throttling.
-10. **Admin PATCH does not validate the `email` field** on update — the POST endpoint validates email format, but the PATCH path skips that check when changing an existing user's email.
+1. **`logoDataUrl` has no size limit** in the roster `PUT` route — a large base64 image can be stored without bounds.
+2. **`constraint_overrides` table** exists in schema and migrations but is completely unused. Dead code at the DB layer.
+3. **`storage.ts` is stale** — `loadRoster` / `saveRoster` check `typeof window` for SSR safety but the module is still imported in lib context. Recommend pruning or converting to pure utility functions.
+4. **`practice-pdf.ts` duplicates `loadPennant`** — it has its own local copy of the function with its own cache, instead of importing the exported version from `pdf.ts`.
+5. **No rate limiting** on `/api/spotify/sync-playlist` or `/api/practice/generate-station` — both make expensive third-party calls (Spotify API, Anthropic) without any throttling.
+6. **Admin PATCH does not validate the `email` field** on update — the POST endpoint validates email format, but the PATCH path skips that check when changing an existing user's email.
+7. **`Onboarding.tsx` uses fragile player ID generation** — `handleAddPlayer` in `src/components/Onboarding.tsx` still uses `parseInt(p.id)` / `String(maxId + 1)`. The matching issue was fixed in `page.tsx` (now uses `crypto.randomUUID()`) but `Onboarding.tsx` was missed. Non-numeric IDs would produce NaN.
+8. **XSS in admin action page** — `src/app/api/admin/users/action/route.ts` interpolates `user.name || user.email` directly into an HTML response without escaping. A user who signs up with a crafted name can inject script tags into the admin approval page.
+
+*Items resolved in previous audits: H1 (admin Spotify token leak), H2 (history POST validation), M1 (scheduler console.log), M4 (page.tsx UUID), L1 (admin email env var), L3 (drizzle-kit devDependencies).*
 
 ---
 
@@ -189,5 +191,4 @@ The solver uses hardcoded bench schedules for the standard 6-inning / 10-field-s
 - **Edge runtime in middleware**: `validateToken` reimplements the HMAC check using `crypto.subtle` (Web Crypto) because `crypto.timingSafeEqual` from Node.js is unavailable in the Vercel Edge runtime. The two implementations must stay in sync.
 - **`getActiveTeam` has a side effect**: if a user has teams but no `activeTeamId`, it picks the oldest team and writes `activeTeamId` back to the DB. Callers should be aware this is not a pure read.
 - **Solver runs client-side**: the backtracking scheduler runs in the browser, not on the server. This keeps the API surface simple but means mobile browsers may time out on edge-case constraint configurations.
-- **Hardcoded admin email**: `lib/email.ts` sends signup notifications to `matthh@gmail.com` — this should be moved to an env var (`ADMIN_EMAIL`).
-- **`drizzle-kit` is in `dependencies` not `devDependencies`**: it's a migration tool that doesn't need to be in the production bundle.
+- **Admin email env var**: `lib/email.ts` reads `ADMIN_NOTIFICATION_EMAIL`, falling back to `matthh@gmail.com`. The env var is optional but recommended to avoid leaking a personal address in source.
