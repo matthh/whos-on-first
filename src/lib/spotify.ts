@@ -52,8 +52,14 @@ export async function getSpotifyServiceUserId(): Promise<string | null> {
 export async function getValidServiceAccessToken(): Promise<string | null> {
   const refreshToken = await getAppSetting(SPOTIFY_SERVICE_REFRESH_KEY);
   if (!refreshToken) return null;
-  const fresh = await refreshAccessToken(refreshToken);
-  if (!fresh) return null;
+  const result = await refreshAccessToken(refreshToken);
+  if (!result.ok) {
+    // Discard a permanently-dead refresh token so /admin prompts a re-link of
+    // the service account (Spotify 6-month refresh-token expiry, 2026-07-20+).
+    if (result.invalidGrant) await clearSpotifyServiceTokens();
+    return null;
+  }
+  const fresh = result.tokens;
   // Persist the rotated refresh token if Spotify issued one.
   if (fresh.refresh_token && fresh.refresh_token !== refreshToken) {
     await setAppSetting(SPOTIFY_SERVICE_REFRESH_KEY, fresh.refresh_token);
@@ -116,10 +122,22 @@ export async function exchangeCodeForTokens(code: string): Promise<SpotifyTokens
   return res.json() as Promise<SpotifyTokens>;
 }
 
+/**
+ * Result of a refresh attempt. `invalidGrant` distinguishes a permanently dead
+ * refresh token (Spotify returns HTTP 400 {"error":"invalid_grant"} when the
+ * token is expired/revoked — note: refresh tokens expire after 6 months as of
+ * 2026-07-20) from a transient failure. On invalidGrant the caller MUST discard
+ * the stored token and re-auth the user; on a transient failure it should keep
+ * the token and try again later.
+ */
+export type RefreshResult =
+  | { ok: true; tokens: SpotifyTokens }
+  | { ok: false; invalidGrant: boolean };
+
 /** Refresh an expired access token. Spotify may rotate refresh tokens. */
-export async function refreshAccessToken(refreshToken: string): Promise<SpotifyTokens | null> {
+export async function refreshAccessToken(refreshToken: string): Promise<RefreshResult> {
   const cfg = getSpotifyConfig();
-  if (!cfg) return null;
+  if (!cfg) return { ok: false, invalidGrant: false };
   const basic = Buffer.from(`${cfg.clientId}:${cfg.clientSecret}`).toString("base64");
   const res = await fetch(SPOTIFY_TOKEN_URL, {
     method: "POST",
@@ -132,16 +150,28 @@ export async function refreshAccessToken(refreshToken: string): Promise<SpotifyT
       refresh_token: refreshToken,
     }),
   });
-  if (!res.ok) return null;
+  if (!res.ok) {
+    let invalidGrant = false;
+    try {
+      const body = (await res.json()) as { error?: string };
+      invalidGrant = body?.error === "invalid_grant";
+    } catch {
+      /* non-JSON error body — treat as transient */
+    }
+    return { ok: false, invalidGrant };
+  }
   const data = (await res.json()) as Partial<SpotifyTokens>;
   // Spotify sometimes omits refresh_token on refresh — keep the original.
-  if (!data.access_token || typeof data.expires_in !== "number") return null;
+  if (!data.access_token || typeof data.expires_in !== "number") return { ok: false, invalidGrant: false };
   return {
-    access_token: data.access_token,
-    refresh_token: data.refresh_token ?? refreshToken,
-    expires_in: data.expires_in,
-    token_type: data.token_type ?? "Bearer",
-    scope: data.scope ?? "",
+    ok: true,
+    tokens: {
+      access_token: data.access_token,
+      refresh_token: data.refresh_token ?? refreshToken,
+      expires_in: data.expires_in,
+      token_type: data.token_type ?? "Bearer",
+      scope: data.scope ?? "",
+    },
   };
 }
 
@@ -159,8 +189,19 @@ export async function getValidAccessToken(userId: number): Promise<string | null
     return user.spotifyAccessToken;
   }
 
-  const fresh = await refreshAccessToken(user.spotifyRefreshToken);
-  if (!fresh) return null;
+  const result = await refreshAccessToken(user.spotifyRefreshToken);
+  if (!result.ok) {
+    // Discard the expired refresh token so spotify-status reports disconnected
+    // and the UI prompts the user to reconnect (Spotify 6-month expiry).
+    if (result.invalidGrant) {
+      await db
+        .update(users)
+        .set({ spotifyAccessToken: null, spotifyRefreshToken: null, spotifyExpiresAt: null })
+        .where(eq(users.id, userId));
+    }
+    return null;
+  }
+  const fresh = result.tokens;
   const newExpiresAt = new Date(Date.now() + fresh.expires_in * 1000);
   await db
     .update(users)
