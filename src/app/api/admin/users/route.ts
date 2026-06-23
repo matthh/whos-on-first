@@ -126,7 +126,14 @@ export async function PATCH(request: NextRequest) {
 
   const updates: Record<string, unknown> = {};
   if (name !== undefined) updates.name = name;
-  if (email !== undefined) updates.email = email.toLowerCase().trim();
+  if (email !== undefined) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const trimmed = typeof email === "string" ? email.toLowerCase().trim() : "";
+    if (!trimmed || !emailRegex.test(trimmed)) {
+      return NextResponse.json({ error: "Invalid email format" }, { status: 400 });
+    }
+    updates.email = trimmed;
+  }
   if (role !== undefined) updates.role = role;
   if (status !== undefined) updates.status = status;
 

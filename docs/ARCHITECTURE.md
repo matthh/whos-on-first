@@ -1,6 +1,6 @@
 # Who's On First — Architecture
 
-**Last reviewed: 2026-06-16**
+**Last reviewed: 2026-06-23**
 
 ## Purpose
 
@@ -177,11 +177,13 @@ The solver uses hardcoded bench schedules for the standard 6-inning / 10-field-s
 3. **`storage.ts` is stale** — `loadRoster` / `saveRoster` check `typeof window` for SSR safety but the module is still imported in lib context. Recommend pruning or converting to pure utility functions.
 4. **`practice-pdf.ts` duplicates `loadPennant`** — it has its own local copy of the function with its own cache, instead of importing the exported version from `pdf.ts`.
 5. **No rate limiting** on `/api/spotify/sync-playlist` or `/api/practice/generate-station` — both make expensive third-party calls (Spotify API, Anthropic) without any throttling.
-6. **Admin PATCH does not validate the `email` field** on update — the POST endpoint validates email format, but the PATCH path skips that check when changing an existing user's email.
-7. **`Onboarding.tsx` uses fragile player ID generation** — `handleAddPlayer` in `src/components/Onboarding.tsx` still uses `parseInt(p.id)` / `String(maxId + 1)`. The matching issue was fixed in `page.tsx` (now uses `crypto.randomUUID()`) but `Onboarding.tsx` was missed. Non-numeric IDs would produce NaN.
-8. **XSS in admin action page** — `src/app/api/admin/users/action/route.ts` interpolates `user.name || user.email` directly into an HTML response without escaping. A user who signs up with a crafted name can inject script tags into the admin approval page.
+6. **`practice-pdf.ts` duplicates `loadPennant`** — it has its own local copy of the function with its own cache, instead of importing the exported version from `pdf.ts`.
+7. **No rate limiting** on `/api/spotify/sync-playlist` or `/api/practice/generate-station` — both make expensive third-party calls (Spotify API, Anthropic) without any throttling.
+8. **`logoDataUrl` has no size limit** in the roster `PUT` route — a large base64 image can be stored without bounds (the Onboarding UI caps file upload at 2 MB, but direct API callers bypass this).
+9. **`constraint_overrides` table** exists in schema and migrations but is completely unused. Dead code at the DB layer.
+10. **No Content-Security-Policy header** — `next.config.ts` sets `X-Frame-Options`, `X-Content-Type-Options`, and `Referrer-Policy`, but no CSP.
 
-*Items resolved in previous audits: H1 (admin Spotify token leak), H2 (history POST validation), M1 (scheduler console.log), M4 (page.tsx UUID), L1 (admin email env var), L3 (drizzle-kit devDependencies).*
+*Items resolved in previous audits: H1 (admin Spotify token leak), H2 (history POST validation), H3 (XSS in admin action page), M-prior (scheduler console.log), M-prior (page.tsx UUID), M-prior (Onboarding.tsx UUID), M3 (admin PATCH email validation), L1 (admin email env var), L3 (drizzle-kit devDependencies).*
 
 ---
 
