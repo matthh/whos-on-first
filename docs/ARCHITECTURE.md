@@ -1,6 +1,6 @@
 # Who's On First — Architecture
 
-**Last reviewed: 2026-06-23**
+**Last reviewed: 2026-07-14**
 
 ## Purpose
 
@@ -87,7 +87,7 @@ The solver uses hardcoded bench schedules for the standard 6-inning / 10-field-s
 | `src/lib/db.ts` | Drizzle client, reads `POSTGRES_DATABASE_URL` |
 | `src/lib/auth.ts` | `getUserId`, `getUser`, `getActiveTeam`, `signOAuthState`, `verifyOAuthState` |
 | `src/lib/session.ts` | `createSessionToken`, `validateSessionToken` — HMAC session tokens |
-| `src/lib/spotify.ts` | Spotify OAuth helpers, token refresh, playlist/track helpers, service account management |
+| `src/lib/spotify.ts` | Spotify OAuth helpers, token refresh, playlist/track helpers, service account management. Detects Spotify's 6-month `invalid_grant` expiry, auto-clears stored tokens, and surfaces a re-link prompt. |
 | `src/lib/email.ts` | Resend-based transactional emails (signup, approval, invite). Admin email hardcoded to `matthh@gmail.com` |
 | `src/lib/pdf.ts` | Game-sheet PDF (`generatePDF`) |
 | `src/lib/walk-up-pdf.ts` | Walk-on music printout PDF (`generateWalkUpPDF`) |
@@ -172,16 +172,13 @@ The solver uses hardcoded bench schedules for the standard 6-inning / 10-field-s
 
 ## Tech debt
 
-1. **`logoDataUrl` has no size limit** in the roster `PUT` route — a large base64 image can be stored without bounds.
+1. **`logoDataUrl` has no size limit** in the roster `PUT` route — a large base64 image can be stored without bounds (the Onboarding UI caps file upload at 2 MB, but direct API callers bypass this).
 2. **`constraint_overrides` table** exists in schema and migrations but is completely unused. Dead code at the DB layer.
 3. **`storage.ts` is stale** — `loadRoster` / `saveRoster` check `typeof window` for SSR safety but the module is still imported in lib context. Recommend pruning or converting to pure utility functions.
 4. **`practice-pdf.ts` duplicates `loadPennant`** — it has its own local copy of the function with its own cache, instead of importing the exported version from `pdf.ts`.
 5. **No rate limiting** on `/api/spotify/sync-playlist` or `/api/practice/generate-station` — both make expensive third-party calls (Spotify API, Anthropic) without any throttling.
-6. **`practice-pdf.ts` duplicates `loadPennant`** — it has its own local copy of the function with its own cache, instead of importing the exported version from `pdf.ts`.
-7. **No rate limiting** on `/api/spotify/sync-playlist` or `/api/practice/generate-station` — both make expensive third-party calls (Spotify API, Anthropic) without any throttling.
-8. **`logoDataUrl` has no size limit** in the roster `PUT` route — a large base64 image can be stored without bounds (the Onboarding UI caps file upload at 2 MB, but direct API callers bypass this).
-9. **`constraint_overrides` table** exists in schema and migrations but is completely unused. Dead code at the DB layer.
-10. **No Content-Security-Policy header** — `next.config.ts` sets `X-Frame-Options`, `X-Content-Type-Options`, and `Referrer-Policy`, but no CSP.
+6. **No Content-Security-Policy header** — `next.config.ts` sets `X-Frame-Options`, `X-Content-Type-Options`, and `Referrer-Policy`, but no CSP.
+7. **`/api/practice/generate-station` does not check approved status** — only `getUserId` is called (line 47); pending users can trigger Claude Haiku calls.
 
 *Items resolved in previous audits: H1 (admin Spotify token leak), H2 (history POST validation), H3 (XSS in admin action page), M-prior (scheduler console.log), M-prior (page.tsx UUID), M-prior (Onboarding.tsx UUID), M3 (admin PATCH email validation), L1 (admin email env var), L3 (drizzle-kit devDependencies).*
 
