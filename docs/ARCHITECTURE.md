@@ -1,6 +1,6 @@
 # Who's On First — Architecture
 
-**Last reviewed: 2026-07-21**
+**Last reviewed: 2026-07-28**
 
 ## Purpose
 
@@ -179,6 +179,10 @@ The solver uses hardcoded bench schedules for the standard 6-inning / 10-field-s
 5. **No rate limiting** on `/api/spotify/sync-playlist` or `/api/practice/generate-station` — both make expensive third-party calls (Spotify API, Anthropic) without any throttling.
 6. **No Content-Security-Policy header** — `next.config.ts` sets `X-Frame-Options`, `X-Content-Type-Options`, and `Referrer-Policy`, but no CSP.
 7. **`/api/practice/generate-station` does not check approved status** — only `getUserId` is called (line 47); pending users can trigger Claude Haiku calls.
+8. **Spotify routes skip approval check** — `/api/spotify/search`, `/api/spotify/sync-playlist`, and `/api/auth/spotify-disconnect` only call `getUserId`, not the `approved`/`admin` gate. Pending users can search Spotify via the service account and trigger playlist-sync writes (including roster mutation on default-song assignment).
+9. **`role` and `status` not enum-validated in admin routes** — `POST /api/admin/users` and `PATCH /api/admin/users` accept arbitrary strings for `role` and `status`, allowing an admin to write values like `"APPROVED"` (wrong case) or `"superadmin"`, which puts the row in an unrecoverable state since all code checks exact lowercase literals.
+10. **`/api/history` GET is unbounded** — no `.limit()` on the query; a team with many saved games returns every row in a single response.
+11. **`db.ts` non-null assertion on `POSTGRES_DATABASE_URL`** — `neon(process.env.POSTGRES_DATABASE_URL!)` silently crashes at startup with a cryptic message if the env var is absent; the established pattern in `session.ts` and `auth.ts` is to throw a named error.
 
 *Items resolved in previous audits: H1 (admin Spotify token leak), H2 (history POST validation), H3 (XSS in admin action page), M-prior (scheduler console.log), M-prior (page.tsx UUID), M-prior (Onboarding.tsx UUID), M3 (admin PATCH email validation), L1 (admin email env var), L3 (drizzle-kit devDependencies).*
 
