@@ -1,6 +1,6 @@
 # Who's On First — Architecture
 
-**Last reviewed: 2026-07-28**
+**Last reviewed: 2026-08-04**
 
 ## Purpose
 
@@ -175,14 +175,14 @@ The solver uses hardcoded bench schedules for the standard 6-inning / 10-field-s
 1. **`logoDataUrl` has no size limit** in the roster `PUT` route — a large base64 image can be stored without bounds (the Onboarding UI caps file upload at 2 MB, but direct API callers bypass this).
 2. **`constraint_overrides` table** exists in schema and migrations but is completely unused. Dead code at the DB layer.
 3. **`storage.ts` is stale** — `loadRoster` / `saveRoster` check `typeof window` for SSR safety but the module is still imported in lib context. Recommend pruning or converting to pure utility functions.
-4. **`practice-pdf.ts` duplicates `loadPennant`** — it has its own local copy of the function with its own cache, instead of importing the exported version from `pdf.ts`.
-5. **No rate limiting** on `/api/spotify/sync-playlist` or `/api/practice/generate-station` — both make expensive third-party calls (Spotify API, Anthropic) without any throttling.
-6. **No Content-Security-Policy header** — `next.config.ts` sets `X-Frame-Options`, `X-Content-Type-Options`, and `Referrer-Policy`, but no CSP.
-7. **`/api/practice/generate-station` does not check approved status** — only `getUserId` is called (line 47); pending users can trigger Claude Haiku calls.
-8. **Spotify routes skip approval check** — `/api/spotify/search`, `/api/spotify/sync-playlist`, and `/api/auth/spotify-disconnect` only call `getUserId`, not the `approved`/`admin` gate. Pending users can search Spotify via the service account and trigger playlist-sync writes (including roster mutation on default-song assignment).
-9. **`role` and `status` not enum-validated in admin routes** — `POST /api/admin/users` and `PATCH /api/admin/users` accept arbitrary strings for `role` and `status`, allowing an admin to write values like `"APPROVED"` (wrong case) or `"superadmin"`, which puts the row in an unrecoverable state since all code checks exact lowercase literals.
-10. **`/api/history` GET is unbounded** — no `.limit()` on the query; a team with many saved games returns every row in a single response.
-11. **`db.ts` non-null assertion on `POSTGRES_DATABASE_URL`** — `neon(process.env.POSTGRES_DATABASE_URL!)` silently crashes at startup with a cryptic message if the env var is absent; the established pattern in `session.ts` and `auth.ts` is to throw a named error.
+4. **No rate limiting** on `/api/spotify/sync-playlist` or `/api/practice/generate-station` — both make expensive third-party calls (Spotify API, Anthropic) without any throttling.
+5. **No Content-Security-Policy header** — `next.config.ts` sets `X-Frame-Options`, `X-Content-Type-Options`, and `Referrer-Policy`, but no CSP.
+6. **No test suite** — the scheduler (`lib/scheduler.ts`) and constraint logic (`lib/constraints.ts`) are pure functions with complex behaviour but have no unit tests.
+7. **AI model ID may go stale** — `claude-haiku-4-5-20251001` is hardcoded in `src/app/api/practice/generate-station/route.ts`. There is no `check:models` script in this project; if the model is retired, the endpoint will return 502 errors silently. Review model ID periodically.
+8. **`/api/admin/users` GET is unbounded** — no `.limit()` on the admin user list query. Low risk at current scale but will degrade with growth.
+9. **`teams/[id]/route.ts` DELETE fetches all team rows for count check** — uses `db.select({ id })` instead of `COUNT(*)`. Harmless at current scale but should use an aggregate.
+
+*Items resolved in 2026-08-04 audit: M-1 (practice generate-station approval gate), M-5 (role/status enum validation in admin routes), M-6 (Spotify routes skip approval gate — search, sync-playlist, disconnect), L-1 (practice-pdf loadPennant duplication — now imports from pdf.ts), L-5 (history GET unbounded — .limit(200) added), L-6 (db.ts non-null assertion replaced with explicit error).*
 
 *Items resolved in previous audits: H1 (admin Spotify token leak), H2 (history POST validation), H3 (XSS in admin action page), M-prior (scheduler console.log), M-prior (page.tsx UUID), M-prior (Onboarding.tsx UUID), M3 (admin PATCH email validation), L1 (admin email env var), L3 (drizzle-kit devDependencies).*
 

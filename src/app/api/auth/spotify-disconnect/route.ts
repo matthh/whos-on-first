@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUserId } from "@/lib/auth";
+import { getUserId, getUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { users, teams } from "@/lib/schema";
 import { eq } from "drizzle-orm";
@@ -8,6 +8,11 @@ export async function POST(request: NextRequest) {
   const userId = getUserId(request);
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const user = await getUser(request);
+  if (!user || (user.status !== "approved" && user.role !== "admin")) {
+    return NextResponse.json({ error: "Account not approved" }, { status: 403 });
   }
 
   // Clear all Spotify state from the user. We do NOT delete the playlist

@@ -20,7 +20,8 @@ export async function GET(request: NextRequest) {
     .select()
     .from(gameHistory)
     .where(and(eq(gameHistory.userId, userId), eq(gameHistory.teamId, team.id)))
-    .orderBy(desc(gameHistory.createdAt));
+    .orderBy(desc(gameHistory.createdAt))
+    .limit(200);
 
   return NextResponse.json({ entries });
 }

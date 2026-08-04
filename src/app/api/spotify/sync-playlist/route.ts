@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUserId, getActiveTeam } from "@/lib/auth";
+import { getUserId, getUser, getActiveTeam } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { rosters, teams } from "@/lib/schema";
 import { and, eq } from "drizzle-orm";
@@ -33,6 +33,11 @@ interface SyncResult {
 export async function POST(request: NextRequest): Promise<NextResponse<SyncResult>> {
   const userId = getUserId(request);
   if (!userId) return NextResponse.json({ ok: false, reason: "unauthorized" }, { status: 401 });
+
+  const user = await getUser(request);
+  if (!user || (user.status !== "approved" && user.role !== "admin")) {
+    return NextResponse.json({ ok: false, reason: "account_not_approved" }, { status: 403 });
+  }
 
   const team = await getActiveTeam(request);
   if (!team) return NextResponse.json({ ok: false, reason: "no_active_team" });

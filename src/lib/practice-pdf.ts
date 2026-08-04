@@ -4,27 +4,7 @@ import { Player } from "./types";
 import { PracticeConfig, PracticeStation } from "./constraints";
 import { TeamColors, hexToRgb } from "./colors";
 import { splitIntoGroups } from "@/components/PracticePanel";
-
-let pennantCache: string | null = null;
-
-async function loadPennant(): Promise<string | null> {
-  if (pennantCache) return pennantCache;
-  try {
-    const res = await fetch("/logo.png");
-    const blob = await res.blob();
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        pennantCache = reader.result as string;
-        resolve(pennantCache);
-      };
-      reader.onerror = () => resolve(null);
-      reader.readAsDataURL(blob);
-    });
-  } catch {
-    return null;
-  }
-}
+import { loadPennant } from "./pdf";
 
 // ── Age-appropriate coaching instructions ──
 

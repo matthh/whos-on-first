@@ -5,6 +5,11 @@ import { users } from "@/lib/schema";
 import { and, eq, ne, sql } from "drizzle-orm";
 import { sendApprovalNotification, sendInviteEmail, sendPendingSignupEmail } from "@/lib/email";
 
+const ALLOWED_ROLES = ["admin", "user"] as const;
+const ALLOWED_STATUSES = ["pending", "approved", "suspended"] as const;
+type AllowedRole = typeof ALLOWED_ROLES[number];
+type AllowedStatus = typeof ALLOWED_STATUSES[number];
+
 async function countOtherAdmins(targetId: number): Promise<number> {
   const [row] = await db
     .select({ count: sql<number>`count(*)::int` })
@@ -53,6 +58,13 @@ export async function POST(request: NextRequest) {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) {
     return NextResponse.json({ error: "Invalid email format" }, { status: 400 });
+  }
+
+  if (role !== undefined && !ALLOWED_ROLES.includes(role as AllowedRole)) {
+    return NextResponse.json({ error: `Invalid role; must be one of: ${ALLOWED_ROLES.join(", ")}` }, { status: 400 });
+  }
+  if (status !== undefined && !ALLOWED_STATUSES.includes(status as AllowedStatus)) {
+    return NextResponse.json({ error: `Invalid status; must be one of: ${ALLOWED_STATUSES.join(", ")}` }, { status: 400 });
   }
 
   try {
@@ -122,6 +134,13 @@ export async function PATCH(request: NextRequest) {
         { status: 400 }
       );
     }
+  }
+
+  if (role !== undefined && !ALLOWED_ROLES.includes(role as AllowedRole)) {
+    return NextResponse.json({ error: `Invalid role; must be one of: ${ALLOWED_ROLES.join(", ")}` }, { status: 400 });
+  }
+  if (status !== undefined && !ALLOWED_STATUSES.includes(status as AllowedStatus)) {
+    return NextResponse.json({ error: `Invalid status; must be one of: ${ALLOWED_STATUSES.join(", ")}` }, { status: 400 });
   }
 
   const updates: Record<string, unknown> = {};

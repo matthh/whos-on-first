@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUserId } from "@/lib/auth";
+import { getUserId, getUser } from "@/lib/auth";
 import Anthropic from "@anthropic-ai/sdk";
 
 interface RequestBody {
@@ -46,6 +46,11 @@ function isStationGuide(value: unknown): value is StationGuide {
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const userId = getUserId(request);
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const user = await getUser(request);
+  if (!user || (user.status !== "approved" && user.role !== "admin")) {
+    return NextResponse.json({ error: "Account not approved" }, { status: 403 });
+  }
 
   let body: RequestBody;
   try {
