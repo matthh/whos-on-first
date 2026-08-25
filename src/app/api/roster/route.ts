@@ -119,7 +119,8 @@ export async function PUT(request: NextRequest) {
 
   // Coach name is a user-level field, not team-level
   if (coachName !== undefined) {
-    await db.update(users).set({ name: coachName }).where(eq(users.id, userId));
+    const safeName = String(coachName).replace(/<[^>]*>/g, "").slice(0, 100);
+    await db.update(users).set({ name: safeName }).where(eq(users.id, userId));
   }
 
   return NextResponse.json({ ok: true });

@@ -160,7 +160,20 @@ export async function PATCH(request: NextRequest) {
     .update(users)
     .set(updates)
     .where(eq(users.id, id))
-    .returning();
+    .returning({
+      id: users.id,
+      email: users.email,
+      name: users.name,
+      role: users.role,
+      status: users.status,
+      authProvider: users.authProvider,
+      authProviderId: users.authProviderId,
+      activeTeamId: users.activeTeamId,
+      createdAt: users.createdAt,
+      lastLoginAt: users.lastLoginAt,
+      spotifyUserId: users.spotifyUserId,
+      spotifyDisplayName: users.spotifyDisplayName,
+    });
 
   // Send approval notification if status changed to approved
   if (status === "approved" && current.status !== "approved") {

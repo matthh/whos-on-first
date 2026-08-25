@@ -1,6 +1,6 @@
 # Who's On First — Architecture
 
-**Last reviewed: 2026-08-18**
+**Last reviewed: 2026-08-25**
 
 ## Purpose
 
@@ -181,7 +181,9 @@ The solver uses hardcoded bench schedules for the standard 6-inning / 10-field-s
 7. **AI model ID may go stale** — `claude-haiku-4-5-20251001` is hardcoded in `src/app/api/practice/generate-station/route.ts`. There is no `check:models` script in this project; if the model is retired, the endpoint will return 502 errors silently. Review model ID periodically.
 8. **`/api/admin/users` GET is unbounded** — no `.limit()` on the admin user list query. Low risk at current scale but will degrade with growth.
 9. **`teams/[id]/route.ts` DELETE fetches all team rows for count check** — uses `db.select({ id })` instead of `COUNT(*)`. Harmless at current scale but should use an aggregate.
-10. **Admin PATCH returns full user row** — `src/app/api/admin/users/route.ts` PATCH uses `.returning()` without column selection, so the response JSON includes `spotifyAccessToken` and `spotifyRefreshToken` for the updated user. Violates the "never expose Spotify tokens in admin-facing queries" invariant. Fix: add a column projection to `.returning({ id: …, email: …, … })` matching the safe field set used by the GET handler.
+10. **`/api/auth/spotify-status` exposes `serviceUserId`** — all authenticated users receive the Spotify service-account user ID in the response. Not used by any client code for display or routing.
+
+*Items resolved in 2026-08-25 audit: H-1 (admin PATCH Spotify token leak — column projection added to `.returning()`), L-5 (coachName validation — HTML stripping and 100-char cap applied).*
 
 *Items resolved in 2026-08-04 audit: M-1 (practice generate-station approval gate), M-5 (role/status enum validation in admin routes), M-6 (Spotify routes skip approval gate — search, sync-playlist, disconnect), L-1 (practice-pdf loadPennant duplication — now imports from pdf.ts), L-5 (history GET unbounded — .limit(200) added), L-6 (db.ts non-null assertion replaced with explicit error).*
 
@@ -196,3 +198,4 @@ The solver uses hardcoded bench schedules for the standard 6-inning / 10-field-s
 - **`getActiveTeam` has a side effect**: if a user has teams but no `activeTeamId`, it picks the oldest team and writes `activeTeamId` back to the DB. Callers should be aware this is not a pure read.
 - **Solver runs client-side**: the backtracking scheduler runs in the browser, not on the server. This keeps the API surface simple but means mobile browsers may time out on edge-case constraint configurations.
 - **Admin email env var**: `lib/email.ts` reads `ADMIN_NOTIFICATION_EMAIL`, falling back to `matthh@gmail.com`. The env var is optional but recommended to avoid leaking a personal address in source.
+- **Spotify sync mutates the roster**: `/api/spotify/sync-playlist` may write default walk-on songs back to the roster if players are missing song assignments. This is a side effect callers should be aware of — it is fire-and-forget from the Generate handler.
