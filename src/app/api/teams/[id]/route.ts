@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUserId, getUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { teams, users } from "@/lib/schema";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 function sanitizeName(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
@@ -97,8 +97,11 @@ export async function DELETE(request: NextRequest, ctx: { params: Promise<{ id: 
   const { userId, team } = guard;
 
   // Prevent deleting the last team — user should always have at least one
-  const count = await db.select({ id: teams.id }).from(teams).where(eq(teams.userId, userId));
-  if (count.length <= 1) {
+  const [{ n }] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(teams)
+    .where(eq(teams.userId, userId));
+  if (n <= 1) {
     return NextResponse.json({ error: "Cannot delete your only team" }, { status: 400 });
   }
 

@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Select only non-sensitive columns — never expose Spotify OAuth tokens.
+  // Hard-capped at 500 rows; implement cursor pagination if this is ever hit.
   const allUsers = await db
     .select({
       id: users.id,
@@ -39,7 +40,8 @@ export async function GET(request: NextRequest) {
       spotifyUserId: users.spotifyUserId,
       spotifyDisplayName: users.spotifyDisplayName,
     })
-    .from(users);
+    .from(users)
+    .limit(500);
   return NextResponse.json({ users: allUsers });
 }
 
@@ -67,12 +69,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: `Invalid status; must be one of: ${ALLOWED_STATUSES.join(", ")}` }, { status: 400 });
   }
 
+  const safeName = typeof name === "string"
+    ? name.replace(/<[^>]*>/g, "").slice(0, 100).trim() || null
+    : null;
+
   try {
     const [user] = await db
       .insert(users)
       .values({
         email: email.toLowerCase().trim(),
-        name: name || null,
+        name: safeName,
         role: role || "user",
         status: status || "approved",
       })
@@ -144,7 +150,13 @@ export async function PATCH(request: NextRequest) {
   }
 
   const updates: Record<string, unknown> = {};
-  if (name !== undefined) updates.name = name;
+  if (name !== undefined) {
+    // Strip HTML tags and cap length, matching the sanitization applied to
+    // coachName in the roster PUT route (L-5 fix, 2026-08-25).
+    updates.name = typeof name === "string"
+      ? name.replace(/<[^>]*>/g, "").slice(0, 100).trim() || null
+      : null;
+  }
   if (email !== undefined) {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const trimmed = typeof email === "string" ? email.toLowerCase().trim() : "";

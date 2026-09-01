@@ -1,6 +1,6 @@
 # Who's On First — Architecture
 
-**Last reviewed: 2026-08-25**
+**Last reviewed: 2026-09-01**
 
 ## Purpose
 
@@ -179,9 +179,12 @@ The solver uses hardcoded bench schedules for the standard 6-inning / 10-field-s
 5. **No Content-Security-Policy header** — `next.config.ts` sets `X-Frame-Options`, `X-Content-Type-Options`, and `Referrer-Policy`, but no CSP.
 6. **No test suite** — the scheduler (`lib/scheduler.ts`) and constraint logic (`lib/constraints.ts`) are pure functions with complex behaviour but have no unit tests.
 7. **AI model ID may go stale** — `claude-haiku-4-5-20251001` is hardcoded in `src/app/api/practice/generate-station/route.ts`. There is no `check:models` script in this project; if the model is retired, the endpoint will return 502 errors silently. Review model ID periodically.
-8. **`/api/admin/users` GET is unbounded** — no `.limit()` on the admin user list query. Low risk at current scale but will degrade with growth.
-9. **`teams/[id]/route.ts` DELETE fetches all team rows for count check** — uses `db.select({ id })` instead of `COUNT(*)`. Harmless at current scale but should use an aggregate.
-10. **`/api/auth/spotify-status` exposes `serviceUserId`** — all authenticated users receive the Spotify service-account user ID in the response. Not used by any client code for display or routing.
+8. ~~**`/api/admin/users` GET is unbounded**~~ — **Fixed 2026-09-01**: `.limit(500)` added.
+9. ~~**`teams/[id]/route.ts` DELETE fetches all team rows for count check**~~ — **Fixed 2026-09-01**: replaced `.length` check with `COUNT(*)::int`.
+10. ~~**`/api/auth/spotify-status` exposes `serviceUserId`**~~ — **Fixed 2026-09-01**: removed from response.
+11. **Remaining CVEs in devDependencies** — `esbuild` (via `drizzle-kit`) and bundled `postcss` (inside `next`) have moderate-severity advisories. Fixing the next/postcss pairing requires upgrading to Next.js 16 (a breaking change). Esbuild is a dev-only tool with no production exposure. Track for resolution on the next major-version upgrade cycle.
+
+*Items resolved in 2026-09-01 audit: L-7 (admin GET unbounded — `.limit(500)` added), L-8 (spotify-status leaked serviceUserId — removed from response), L-9 (teams DELETE count-check — replaced `.length` with `COUNT(*)::int`), L-10 (middleware HMAC comparison — replaced manual XOR loop with `crypto.subtle.verify`), L-new (admin PATCH/POST name field unsanitized — HTML stripping + 100-char cap applied matching roster PUT). Also applied `npm audit fix`: Next.js 15.5.15 → 15.5.25, postcss, nanoid, js-yaml, brace-expansion bumped.*
 
 *Items resolved in 2026-08-25 audit: H-1 (admin PATCH Spotify token leak — column projection added to `.returning()`), L-5 (coachName validation — HTML stripping and 100-char cap applied).*
 

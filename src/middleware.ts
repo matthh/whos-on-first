@@ -27,25 +27,28 @@ async function validateToken(token: string, secret: string): Promise<number | nu
     const [userIdStr, timestampStr, hmac] = parts;
     const payload = `${userIdStr}.${timestampStr}`;
 
+    // Use verify (not sign+compare) so the Web Crypto API performs the
+    // constant-time byte comparison internally. This is cleaner than the
+    // manual XOR loop and is the idiomatic approach in the Edge runtime.
     const key = await crypto.subtle.importKey(
       "raw",
       new TextEncoder().encode(secret),
       { name: "HMAC", hash: "SHA-256" },
       false,
-      ["sign"]
+      ["verify"]
     );
-    const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payload));
-    const expected = btoa(String.fromCharCode(...new Uint8Array(sig)))
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_")
-      .replace(/=+$/, "");
-
-    // Constant-time comparison (Edge runtime has no crypto.timingSafeEqual).
-    let diff = hmac.length ^ expected.length;
-    for (let i = 0; i < Math.min(hmac.length, expected.length); i++) {
-      diff |= hmac.charCodeAt(i) ^ expected.charCodeAt(i);
-    }
-    if (diff !== 0) return null;
+    // Decode the base64url hmac from the token into raw bytes for verify().
+    const hmacBytes = Uint8Array.from(
+      atob(hmac.replace(/-/g, "+").replace(/_/g, "/")),
+      (c) => c.charCodeAt(0)
+    );
+    const valid = await crypto.subtle.verify(
+      "HMAC",
+      key,
+      hmacBytes,
+      new TextEncoder().encode(payload)
+    );
+    if (!valid) return null;
 
     const timestamp = parseInt(timestampStr, 10);
     if (Date.now() - timestamp > MAX_AGE) return null;
