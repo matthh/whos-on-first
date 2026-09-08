@@ -168,24 +168,40 @@ export async function PATCH(request: NextRequest) {
   if (role !== undefined) updates.role = role;
   if (status !== undefined) updates.status = status;
 
-  const [updated] = await db
-    .update(users)
-    .set(updates)
-    .where(eq(users.id, id))
-    .returning({
-      id: users.id,
-      email: users.email,
-      name: users.name,
-      role: users.role,
-      status: users.status,
-      authProvider: users.authProvider,
-      authProviderId: users.authProviderId,
-      activeTeamId: users.activeTeamId,
-      createdAt: users.createdAt,
-      lastLoginAt: users.lastLoginAt,
-      spotifyUserId: users.spotifyUserId,
-      spotifyDisplayName: users.spotifyDisplayName,
-    });
+  async function doUpdate() {
+    return db
+      .update(users)
+      .set(updates)
+      .where(eq(users.id, id))
+      .returning({
+        id: users.id,
+        email: users.email,
+        name: users.name,
+        role: users.role,
+        status: users.status,
+        authProvider: users.authProvider,
+        authProviderId: users.authProviderId,
+        activeTeamId: users.activeTeamId,
+        createdAt: users.createdAt,
+        lastLoginAt: users.lastLoginAt,
+        spotifyUserId: users.spotifyUserId,
+        spotifyDisplayName: users.spotifyDisplayName,
+      });
+  }
+
+  let updated: Awaited<ReturnType<typeof doUpdate>>[number] | undefined;
+  try {
+    [updated] = await doUpdate();
+  } catch (err: unknown) {
+    if (err && typeof err === "object" && "code" in err && err.code === "23505") {
+      return NextResponse.json({ error: "Email already in use by another account" }, { status: 409 });
+    }
+    throw err;
+  }
+
+  if (!updated) {
+    return NextResponse.json({ error: "User not found" }, { status: 404 });
+  }
 
   // Send approval notification if status changed to approved
   if (status === "approved" && current.status !== "approved") {

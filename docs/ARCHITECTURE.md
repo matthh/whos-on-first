@@ -1,6 +1,6 @@
 # Who's On First — Architecture
 
-**Last reviewed: 2026-09-01**
+**Last reviewed: 2026-09-08**
 
 ## Purpose
 
@@ -182,7 +182,9 @@ The solver uses hardcoded bench schedules for the standard 6-inning / 10-field-s
 8. ~~**`/api/admin/users` GET is unbounded**~~ — **Fixed 2026-09-01**: `.limit(500)` added.
 9. ~~**`teams/[id]/route.ts` DELETE fetches all team rows for count check**~~ — **Fixed 2026-09-01**: replaced `.length` check with `COUNT(*)::int`.
 10. ~~**`/api/auth/spotify-status` exposes `serviceUserId`**~~ — **Fixed 2026-09-01**: removed from response.
-11. **Remaining CVEs in devDependencies** — `esbuild` (via `drizzle-kit`) and bundled `postcss` (inside `next`) have moderate-severity advisories. Fixing the next/postcss pairing requires upgrading to Next.js 16 (a breaking change). Esbuild is a dev-only tool with no production exposure. Track for resolution on the next major-version upgrade cycle.
+11. **Remaining CVEs in devDependencies** — `esbuild` (via `drizzle-kit`) has moderate-severity advisories (dev-only tool, no production exposure). The `postcss` bundled inside `next` now carries **HIGH**-severity advisories (GHSA-qx2v-qp2m-jg93 XSS, GHSA-6g55-p6wh-862q / GHSA-fxqj-rqcc-2cmp / GHSA-r28c-9q8g-f849 path traversal). These affect build tooling, not app users at runtime, but fixing the next/postcss pairing requires upgrading to Next.js 16 (a breaking change). Track for resolution on the next major-version upgrade cycle.
+
+*Items resolved in 2026-09-08 audit: fflate 0.8.2 → 0.8.3 via `npm audit fix` (GHSA-px8p-9vwx-vf98 moderate, jsPDF dependency). L-new: admin PATCH email update now catches 23505 constraint violation and returns 409 instead of 500.*
 
 *Items resolved in 2026-09-01 audit: L-7 (admin GET unbounded — `.limit(500)` added), L-8 (spotify-status leaked serviceUserId — removed from response), L-9 (teams DELETE count-check — replaced `.length` with `COUNT(*)::int`), L-10 (middleware HMAC comparison — replaced manual XOR loop with `crypto.subtle.verify`), L-new (admin PATCH/POST name field unsanitized — HTML stripping + 100-char cap applied matching roster PUT). Also applied `npm audit fix`: Next.js 15.5.15 → 15.5.25, postcss, nanoid, js-yaml, brace-expansion bumped.*
 
