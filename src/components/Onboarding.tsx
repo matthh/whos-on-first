@@ -13,6 +13,7 @@ import {
   isOutfieldPosition,
 } from "@/lib/constraints";
 import RosterList from "./RosterList";
+import { maxRosterFor } from "@/lib/scheduler";
 
 interface OnboardingProps {
   onComplete: (config: {
@@ -534,7 +535,7 @@ export default function Onboarding({
               onAddPlayer={handleAddPlayer}
               onRemovePlayer={handleRemovePlayer}
               focusPlayerId={focusPlayerId}
-              maxPlayers={fieldSize + 3}
+              maxPlayers={maxRosterFor(innings, fieldSize)}
             />
           )}
 
@@ -637,7 +638,7 @@ export default function Onboarding({
                   </p>
                   <div className="flex gap-4 items-start">
                     <div className="space-y-0.5">
-                      {Array.from({ length: Math.min(players.length, 13) || 13 }, (_, i) => (
+                      {Array.from({ length: players.length || maxRosterFor(innings, fieldSize) }, (_, i) => (
                         <div
                           key={i}
                           className={`text-[10px] px-2 py-0.5 rounded text-center font-medium ${
@@ -689,12 +690,12 @@ export default function Onboarding({
                       <input
                         type="number"
                         min={1}
-                        max={13}
+                        max={maxRosterFor(innings, fieldSize)}
                         value={r.topN}
                         onChange={(e) =>
                           handleRestrictionTopN(
                             idx,
-                            Math.max(1, Math.min(13, parseInt(e.target.value) || 1))
+                            Math.max(1, Math.min(maxRosterFor(innings, fieldSize), parseInt(e.target.value) || 1))
                           )
                         }
                         className="w-14 text-sm text-center border border-gray-300 rounded py-1 outline-none focus:border-[#002d62]"

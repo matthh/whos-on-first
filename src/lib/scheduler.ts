@@ -597,6 +597,18 @@ function enabledRestrictionsForFeasibility(config: ConstraintConfig) {
 // surfacing infeasible configurations as a clean error instead of a hang.
 const SOLVE_BUDGET_MS = 10_000;
 
+/**
+ * Largest roster this game shape can seat, given that nobody may sit two
+ * innings in a row. The UI and the solver MUST derive their limits from this
+ * one function — a hard-coded 13 in the roster editor was the previous cap,
+ * and it was three short of a legitimate 6-inning/10-position ceiling of 20.
+ */
+export function maxRosterFor(innings: number, fieldSize: number): number {
+  const maxSitsEach = Math.ceil(innings / 2);
+  if (innings <= maxSitsEach) return Number.MAX_SAFE_INTEGER;
+  return Math.floor((innings * fieldSize) / (innings - maxSitsEach));
+}
+
 export function generateGameSheet(
   allPlayers: Player[],
   config: ConstraintConfig = DEFAULT_CONFIG,
@@ -621,7 +633,31 @@ export function generateGameSheet(
   const innings = config.innings;
 
   if (n < fieldSize) throw new Error(`Need at least ${fieldSize} present players, got ${n}.`);
-  if (n > fieldSize + 3) throw new Error(`Maximum ${fieldSize + 3} present players, got ${n}.`);
+  // The real ceiling, derived rather than assumed. "No consecutive bench
+  // innings" is a required rule, so across `innings` innings a player can sit
+  // at most ceil(innings / 2) times. Total bench capacity is therefore
+  // n * ceil(innings/2), while demand is innings * (n - fieldSize). Solving for
+  // n gives the bound below — 20 players for a 10-position, 6-inning game.
+  //
+  // Past that the schedule is mathematically impossible, not merely hard, so it
+  // is worth saying so plainly instead of letting the solver exhaust its search
+  // and report the generic "cannot satisfy all constraints".
+  const maxRoster = maxRosterFor(innings, fieldSize);
+  if (n > maxRoster) {
+    throw new Error(
+      `${n} present players is more than this game can seat. With ${innings} innings and ` +
+      `${fieldSize} field positions, nobody can sit two innings in a row beyond ${maxRoster} players. ` +
+      `Mark someone absent, add field positions, or play more innings.`,
+    );
+  }
+
+  // No fixed upper bound below that. The hand-tuned BENCH_6INN tables only cover
+  // 10-13, but chooseBench() falls through to generateDynamicBench() for any
+  // count without a template, and that scales to any N: it divides the
+  // innings x (n - fieldSize) bench slots evenly, giving the extra sits to the
+  // bottom of the order. The old `fieldSize + 3` ceiling was the tables'
+  // coverage masquerading as a rule, and it rejected a legitimate large roster
+  // outright rather than scheduling it.
 
   // Feasibility pre-check: each enabled topN restriction caps how many
   // distinct players can fill that position. With max-2-per-position the

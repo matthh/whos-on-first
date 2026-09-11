@@ -262,7 +262,9 @@ export default function RosterList({
   onSetWalkOnSong,
   focusPlayerId,
   hideAddButton,
-  maxPlayers = 13,
+  // No default cap — callers pass maxRosterFor(innings, fieldSize). A literal
+  // here was the old hard 13, three short of the real 6-inning ceiling of 20.
+  maxPlayers = Number.MAX_SAFE_INTEGER,
   restrictions = [],
   trackRecognition = false,
 }: RosterListProps) {
@@ -314,9 +316,9 @@ export default function RosterList({
               (need at least 10)
             </span>
           )}
-          {presentCount > 13 && (
+          {presentCount > maxPlayers && (
             <span className="text-red-500 font-medium ml-2">
-              (max 13)
+              (max {maxPlayers})
             </span>
           )}
         </div>

@@ -8,6 +8,29 @@ Who's On First is a single-user-per-coach web app that generates defensive posit
 
 ---
 
+## Roster size
+
+There is no fixed player cap. `maxRosterFor(innings, fieldSize)` in
+`lib/scheduler.ts` is the single source of truth, and both the solver and every
+UI control derive their limit from it.
+
+The bound is arithmetic, not preference. "No consecutive bench innings" is a
+required rule, so across N innings a player can sit at most `ceil(N/2)` times.
+Bench capacity is `n * ceil(N/2)`; demand is `N * (n - fieldSize)`. Solving for
+`n` gives the ceiling — **20 players** for the default 6 innings x 10 positions,
+rising to 23 at 7 innings or 24 with 12 field positions.
+
+Previously the solver threw at `fieldSize + 3` (13) and the roster editor,
+onboarding and the restriction `topN` inputs each hard-coded 13 separately. That
+was the coverage of the hand-tuned `BENCH_6INN` tables (10-13) masquerading as a
+rule: `chooseBench()` already fell through to `generateDynamicBench()`, which
+scales to any count. Rosters of 14-20 were rejected outright despite being
+perfectly schedulable.
+
+Past the ceiling the schedule is impossible rather than merely hard, so the
+solver says so plainly instead of exhausting its search and reporting a generic
+"cannot satisfy all constraints".
+
 ## Stack
 
 | Layer | Technology |

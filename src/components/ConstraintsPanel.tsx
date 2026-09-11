@@ -7,6 +7,7 @@ import {
   PositionRestriction,
   AVAILABLE_POSITIONS,
 } from "@/lib/constraints";
+import { maxRosterFor } from "@/lib/scheduler";
 
 interface ConstraintsPanelProps {
   config: ConstraintConfig;
@@ -19,6 +20,9 @@ export default function ConstraintsPanel({
   onChange,
   onClose,
 }: ConstraintsPanelProps) {
+  // "Top N" can reach the largest roster this game shape can seat — capping it
+  // at 13 made higher ranks unreachable on a 20-player roster.
+  const rosterCeiling = maxRosterFor(config.innings, config.fieldPositions.length);
   const [newRestrictionPos, setNewRestrictionPos] = useState("");
 
   const availableForNewRestriction = AVAILABLE_POSITIONS.filter(
@@ -138,7 +142,8 @@ export default function ConstraintsPanel({
               ];
               const colorMap = new Map(uniqueTopN.map((topN, i) => [topN, i % COLORS.length]));
               const maxTopN = sorted.length > 0 ? Math.max(...sorted.map(r => r.topN)) : 0;
-              const playerCount = Math.max(13, maxTopN + 2);
+              // Preview width follows the real roster ceiling, not a literal 13.
+              const playerCount = Math.max(rosterCeiling, maxTopN + 2);
               // Group restrictions by topN for bracket labels
               const groups = new Map<number, string[]>();
               for (const r of sorted) {
@@ -226,7 +231,7 @@ export default function ConstraintsPanel({
                   <input
                     type="number"
                     min={1}
-                    max={13}
+                    max={rosterCeiling}
                     value={r.topN}
                     onChange={(e) => {
                       const updated = [...config.restrictions];
@@ -234,7 +239,7 @@ export default function ConstraintsPanel({
                         ...r,
                         topN: Math.max(
                           1,
-                          Math.min(13, parseInt(e.target.value) || 1)
+                          Math.min(rosterCeiling, parseInt(e.target.value) || 1)
                         ),
                       };
                       updateRestrictions(updated);

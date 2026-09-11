@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Player, GameSheet, HistoryEntry } from "@/lib/types";
-import { generateGameSheet, validateGameSheet, applyAvoidPositionsPostPass } from "@/lib/scheduler";
+import { generateGameSheet, validateGameSheet, applyAvoidPositionsPostPass, maxRosterFor } from "@/lib/scheduler";
 import { addHistoryEntry } from "@/lib/storage";
 import { generatePDF } from "@/lib/pdf";
 import { generateWalkUpPDF } from "@/lib/walk-up-pdf";
@@ -549,7 +549,7 @@ export default function Home() {
             <div className="text-center py-12 space-y-4">
               <h2 className="text-lg font-bold text-gray-600">Set Up Your Roster</h2>
               <p className="text-sm text-gray-400">
-                Add 10-13 players to get started. Drag to rank them -- best player at top.
+                Add your players to get started. Drag to rank them -- best player at top.
               </p>
               <button
                 onClick={handleAddPlayer}
@@ -571,6 +571,7 @@ export default function Home() {
                 onSetAvoidPositions={handleSetAvoidPositions}
                 onSetWalkOnSong={handleSetWalkOnSong}
                 focusPlayerId={focusPlayerId}
+                maxPlayers={maxRosterFor(config.innings, config.fieldPositions.length)}
                 restrictions={config.restrictions}
                 trackRecognition={config.trackRecognition}
               />
