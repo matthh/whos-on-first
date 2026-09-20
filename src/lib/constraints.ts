@@ -81,6 +81,12 @@ export interface ConstraintConfig {
    *
    * `undefined` means every inning, which is how configs saved before this
    * setting existed behaved -- do not silently re-schedule an old team.
+   *
+   * Deliberately absent from DEFAULT_CONFIG. The client merges
+   * `{...DEFAULT_CONFIG, ...savedConfig}`, so any default here is injected
+   * into every config that predates the field -- which briefly turned four
+   * other coaches' all-game caps into first-two-innings caps. A field whose
+   * undefined case is load-bearing must not carry a default.
    */
   restrictionInnings?: number;
   /**
@@ -313,7 +319,6 @@ export const DEFAULT_CONFIG: ConstraintConfig = {
     POSITIONING_CONSTRAINTS.map((c) => [c.id, c.enabled])
   ),
   restrictions: DEFAULT_RESTRICTIONS,
-  restrictionInnings: 2,
   topPlayerPriority: true,
   benchTopLate: true,
   prioritizeInfieldOverLateBench: true,
