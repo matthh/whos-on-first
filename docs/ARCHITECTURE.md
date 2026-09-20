@@ -19,6 +19,20 @@ innings outside `restrictionInnings` and skips pinned players.
 A violation list must describe the config the sheet was built under. Anything
 else trains the coach to ignore it.
 
+## Team logos in PDFs must be raster
+
+`jsPDF.addImage()` supports raster formats only. It has no SVG support, and
+its format argument is a declaration, not a conversion -- passing a
+`data:image/svg+xml` URL with `"PNG"` throws.
+
+`toRasterDataUrl()` in `lib/pdf.ts` rasterises SVG through a canvas at 256px
+and passes raster formats through tagged with the format actually present.
+Both the game sheet and the walk-up sheet use it.
+
+This failed silently for months: the call sat inside `catch { // skip }`, so a
+team with an SVG logo printed the generic pennant with no error anywhere. The
+catch now logs.
+
 ## Pinned assignments
 
 `pins[inning][playerId] = position` (inning 0-indexed) fixes a player to a

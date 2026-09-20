@@ -29,6 +29,55 @@ export async function loadPennant(): Promise<string | null> {
   }
 }
 
+/**
+ * jsPDF's addImage takes raster formats only -- it has no SVG support at all,
+ * and the format argument is not a hint it can override. A team logo stored as
+ * an SVG data URL therefore threw, and the surrounding catch swallowed it, so
+ * the sheet printed with no logo and no error.
+ *
+ * Rasterise SVG to PNG through a canvas first; pass raster formats straight
+ * through, tagged with the format actually present rather than a hard-coded
+ * "PNG".
+ */
+export async function toRasterDataUrl(
+  dataUrl: string,
+): Promise<{ data: string; format: string } | null> {
+  const mime = dataUrl.match(/^data:([^;,]+)/)?.[1]?.toLowerCase() ?? "";
+
+  if (mime === "image/png") return { data: dataUrl, format: "PNG" };
+  if (mime === "image/jpeg" || mime === "image/jpg") return { data: dataUrl, format: "JPEG" };
+  if (mime === "image/webp") return { data: dataUrl, format: "WEBP" };
+  if (mime !== "image/svg+xml") return null;
+
+  if (typeof document === "undefined") return null;
+  try {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error("svg decode failed"));
+      img.src = dataUrl;
+    });
+    // SVGs often carry no intrinsic size; render at a fixed box so the logo is
+    // crisp at print scale rather than upscaled from whatever the browser guessed.
+    const size = 256;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    const w = img.width || size;
+    const h = img.height || size;
+    const scale = Math.min(size / w, size / h);
+    const dw = w * scale;
+    const dh = h * scale;
+    ctx.drawImage(img, (size - dw) / 2, (size - dh) / 2, dw, dh);
+    return { data: canvas.toDataURL("image/png"), format: "PNG" };
+  } catch {
+    return null;
+  }
+}
+
 export async function generatePDF(
   players: Player[],
   sheet: GameSheet,
@@ -61,10 +110,15 @@ export async function generatePDF(
   let titleX = 14;
   if (logoDataUrl) {
     try {
-      doc.addImage(logoDataUrl, "PNG", 14, startY - 2, 8, 8);
-      titleX = 25;
-    } catch {
-      // skip
+      const raster = await toRasterDataUrl(logoDataUrl);
+      if (raster) {
+        doc.addImage(raster.data, raster.format, 14, startY - 2, 8, 8);
+        titleX = 25;
+      } else {
+        console.warn("[pdf] unsupported team logo format; printing without it");
+      }
+    } catch (err) {
+      console.warn("[pdf] team logo could not be drawn", err);
     }
   }
 

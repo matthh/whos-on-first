@@ -1,3 +1,4 @@
+import { toRasterDataUrl } from "./pdf";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import QRCode from "qrcode";
@@ -52,7 +53,8 @@ export async function generateWalkUpPDF(
   let titleX = 14;
   if (logoDataUrl) {
     try {
-      doc.addImage(logoDataUrl, "PNG", 14, startY - 2, 8, 8);
+      const raster = await toRasterDataUrl(logoDataUrl);
+      if (raster) doc.addImage(raster.data, raster.format, 14, startY - 2, 8, 8);
       titleX = 25;
     } catch {
       // skip
