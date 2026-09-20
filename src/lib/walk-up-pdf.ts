@@ -144,50 +144,78 @@ export async function generateWalkUpPDF(
     return [String(i + 1), p.name, cell];
   });
 
-  // Single-page constraint: pick a row height that lets all present players
-  // (and a small buffer) fit between the subtitle and the page bottom margin.
-  // Fall back to smaller font if we have a huge roster.
+  // Single page, always. The old arithmetic divided the available height by
+  // the row count but clamped at a 6mm floor, so a large roster simply
+  // overflowed onto page two. Row height is also not the only thing that sets
+  // a row's real height -- padding and font do too -- so the fit is measured
+  // rather than predicted: render the table into a scratch document and ask
+  // jsPDF how many pages it took.
   const pageHeight = doc.internal.pageSize.getHeight();
   const tableTop = startY + 17;
   const bottomMargin = 8;
   const headerRowH = 7;
-  const availableForBody = pageHeight - tableTop - bottomMargin - headerRowH;
-  const idealRowH = 13;
-  const minRowH = 6;
-  const fitRowH = Math.max(minRowH, Math.min(idealRowH, availableForBody / Math.max(1, ordered.length)));
-  const fontSize = fitRowH < 8 ? 8 : fitRowH < 10 ? 9 : 11;
 
-  autoTable(doc, {
+  const columnStyles = {
+    0: { halign: "center" as const, cellWidth: 14, fontStyle: "bold" as const },
+    1: { halign: "left" as const, cellWidth: 50, fontStyle: "bold" as const },
+    2: { halign: "left" as const },
+  };
+
+  type Fit = { rowH: number; fontSize: number; padV: number };
+  const buildOptions = (fit: Fit) => ({
     startY: tableTop,
     head: [headers],
     body: rows,
-    theme: "grid",
+    theme: "grid" as const,
+    margin: { bottom: bottomMargin },
     styles: {
-      fontSize,
-      cellPadding: { top: 1.5, right: 3, bottom: 1.5, left: 3 },
-      lineColor: [180, 180, 180],
+      fontSize: fit.fontSize,
+      cellPadding: { top: fit.padV, right: 3, bottom: fit.padV, left: 3 },
+      lineColor: [180, 180, 180] as [number, number, number],
       lineWidth: 0.3,
-      minCellHeight: fitRowH,
-      valign: "middle",
-      overflow: "ellipsize",
+      minCellHeight: fit.rowH,
+      valign: "middle" as const,
+      overflow: "ellipsize" as const,
     },
     headStyles: {
       fillColor: HEADER_BG,
-      textColor: [255, 255, 255],
-      fontStyle: "bold",
-      halign: "left",
+      textColor: [255, 255, 255] as [number, number, number],
+      fontStyle: "bold" as const,
+      halign: "left" as const,
       fontSize: 10,
       minCellHeight: headerRowH,
     },
     bodyStyles: {
-      textColor: [60, 60, 60],
-      fontSize,
+      textColor: [60, 60, 60] as [number, number, number],
+      fontSize: fit.fontSize,
     },
-    columnStyles: {
-      0: { halign: "center", cellWidth: 14, fontStyle: "bold" },
-      1: { halign: "left", cellWidth: 50, fontStyle: "bold" },
-      2: { halign: "left" },
-    },
+    columnStyles,
+  });
+
+  // Generous first, tightest last. Whichever fits first is the one used, so a
+  // normal roster still prints at full size and only a big one gets squeezed.
+  const candidates: Fit[] = [];
+  for (const rowH of [13, 11, 10, 9, 8, 7, 6, 5, 4.5, 4, 3.5, 3]) {
+    const fontSize = rowH >= 10 ? 11 : rowH >= 8 ? 9 : rowH >= 6 ? 8 : rowH >= 4.5 ? 7 : 6;
+    const padV = rowH >= 8 ? 1.5 : rowH >= 5 ? 1 : 0.5;
+    candidates.push({ rowH, fontSize, padV });
+  }
+
+  const fitsOnOnePage = (fit: Fit): boolean => {
+    const probe = new jsPDF({ orientation: "portrait", unit: "mm", format: "letter" });
+    autoTable(probe, buildOptions(fit));
+    return probe.getNumberOfPages() === 1;
+  };
+
+  const chosen = candidates.find(fitsOnOnePage) ?? candidates[candidates.length - 1];
+  if (chosen === candidates[candidates.length - 1] && !fitsOnOnePage(chosen)) {
+    console.warn(
+      `[walk-up] ${ordered.length} players will not fit on one page even at the smallest size`,
+    );
+  }
+
+  autoTable(doc, {
+    ...buildOptions(chosen),
     didParseCell(data) {
       if (data.section !== "body") return;
       if (data.column.index === 2) {
@@ -202,6 +230,12 @@ export async function generateWalkUpPDF(
       }
     },
   });
+
+  // Last-resort guarantee. Nothing above should produce a second page, but the
+  // promise to the coach is one sheet -- an extra page is worse than a warning.
+  while (doc.getNumberOfPages() > 1) {
+    doc.deletePage(doc.getNumberOfPages());
+  }
 
   return doc;
 }

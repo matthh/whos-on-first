@@ -19,6 +19,24 @@ innings outside `restrictionInnings` and skips pinned players.
 A violation list must describe the config the sheet was built under. Anything
 else trains the coach to ignore it.
 
+## The walk-up sheet is always one page
+
+`lib/walk-up-pdf.ts` does not predict the fit, it measures it: the table is
+rendered into a scratch `jsPDF` and `getNumberOfPages()` decides. Candidates
+run generous to tight (13mm rows at 11pt down to 3mm at 6pt, padding
+shrinking with them) and the first that fits on one page wins, so an ordinary
+roster still prints full size and only a large one is squeezed.
+
+The previous arithmetic divided available height by row count but clamped at
+a 6mm floor, so a big roster silently overflowed onto a second page. Row
+height is also not the only input to a row's real height -- font size and
+padding matter too -- which is why predicting it was the wrong approach.
+
+Absent players are filtered out before any of this, so the height they would
+have taken goes to the players actually batting.
+
+Verified at 8, 13, 16, 20, 24 and 30 players: one page each.
+
 ## Team logos in PDFs must be raster
 
 `jsPDF.addImage()` supports raster formats only. It has no SVG support, and
