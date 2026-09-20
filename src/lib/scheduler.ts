@@ -902,6 +902,10 @@ export function validateGameSheet(
   const v: string[] = [];
   const innings = config.innings;
   const fieldSize = config.fieldPositions.length;
+  // Only report rules the coach actually has switched on. The validator used
+  // to hard-code every check, so a sheet built under a deliberately loosened
+  // config came back covered in "violations" of rules nobody asked for.
+  const on = (id: string): boolean => config.positioning?.[id] ?? true;
 
   // Re-rank to effective ranks (1..n among present) so restriction checks
   // match the solver and the UI's eligibility badges. Without this, e.g.
@@ -924,7 +928,13 @@ export function validateGameSheet(
     if (new Set(poss).size !== poss.length)
       v.push(`Inning ${i+1}: duplicate positions`);
 
+    // Caps only bind inside the opening-innings window, and a pinned player
+    // is exempt by definition -- the coach named them. Reporting either as a
+    // violation contradicts what the solver was told to do.
     for (const p of active) {
+      if (!inRestrictionWindow(config, i)) continue;
+      const pinnedHere = config.pins?.[String(i)]?.[p.id];
+      if (pinnedHere) continue;
       for (const r of config.restrictions) {
         if (r.enabled && sheet[i][p.id] === r.position && p.rank > r.topN)
           v.push(`Inning ${i+1}: ${p.name} at ${r.position} (top ${r.topN} only)`);
@@ -945,7 +955,8 @@ export function validateGameSheet(
 
       if (a === "Bench") {
         cb++; cof = 0;
-        if (cb > 1) v.push(`${p.name}: consecutive bench innings ${i} & ${i+1}`);
+        if (cb > 1 && on("no-consecutive-bench"))
+          v.push(`${p.name}: consecutive bench innings ${i} & ${i+1}`);
       } else {
         cb = 0;
         pc.set(a, (pc.get(a) || 0) + 1);
@@ -954,10 +965,11 @@ export function validateGameSheet(
         else cof = 0;
       }
 
-      if (i > 0 && a !== "Bench" && sheet[i-1][p.id] !== "Bench" && sheet[i-1][p.id] === a)
+      if (on("no-consecutive-position") &&
+          i > 0 && a !== "Bench" && sheet[i-1][p.id] !== "Bench" && sheet[i-1][p.id] === a)
         v.push(`${p.name}: same position (${a}) in innings ${i} & ${i+1}`);
 
-      if (isOF(a)) {
+      if (isOF(a) && on("of-bench-adjacency")) {
         if (i > 0 && sheet[i-1][p.id] === "Bench")
           v.push(`${p.name}: OF in inning ${i+1} after bench`);
         if (i < innings - 1 && sheet[i+1]?.[p.id] === "Bench")
@@ -965,12 +977,14 @@ export function validateGameSheet(
       }
     }
 
-    if (mof >= 3) v.push(`${p.name}: ${mof} consecutive OF innings`);
-    for (const [pos, c] of pc)
-      if (c >= 3) v.push(`${p.name}: plays ${pos} ${c} times (max 2)`);
+    if (mof >= 3 && on("max-consecutive-of"))
+      v.push(`${p.name}: ${mof} consecutive OF innings`);
+    if (on("max-2-per-position"))
+      for (const [pos, c] of pc)
+        if (c >= 3) v.push(`${p.name}: plays ${pos} ${c} times (max 2)`);
 
     const bc = Array.from({length: innings}).filter((_, i) => sheet[i][p.id] === "Bench").length;
-    if (innings - bc > 0 && of === 0)
+    if (innings - bc > 0 && of === 0 && on("min-outfield"))
       v.push(`${p.name}: no outfield inning`);
   }
 

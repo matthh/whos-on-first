@@ -8,6 +8,17 @@ Who's On First is a single-user-per-coach web app that generates defensive posit
 
 ---
 
+## The validator reports only enabled rules
+
+`validateGameSheet()` used to hard-code every check, so a sheet generated
+under a deliberately loosened config came back covered in violations of rules
+the coach had switched off. Each check is now gated on its
+`config.positioning` flag, and the restriction check additionally skips
+innings outside `restrictionInnings` and skips pinned players.
+
+A violation list must describe the config the sheet was built under. Anything
+else trains the coach to ignore it.
+
 ## Pinned assignments
 
 `pins[inning][playerId] = position` (inning 0-indexed) fixes a player to a
