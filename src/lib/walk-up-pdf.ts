@@ -26,9 +26,14 @@ export async function generateWalkUpPDF(
   walkOnPlaylistUrl?: string | null,
 ): Promise<jsPDF> {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "letter" });
-  // Include absent players too — parents need to see whose songs to skip,
-  // not have them silently disappear. Absent rows are shaded grey below.
-  const ordered = [...players].sort((a, b) => a.rank - b.rank);
+  // Absent players are left off entirely. They were previously listed and
+  // shaded grey, on the theory that parents needed to see whose song to skip
+  // -- but the sheet is read live at the plate, where an absent kid's song is
+  // simply never cued. Dropping them also frees row height, which the
+  // single-page fit below spends on the players actually batting.
+  const ordered = players
+    .filter((p) => !p.absent)
+    .sort((a, b) => a.rank - b.rank);
   const pageWidth = doc.internal.pageSize.getWidth();
 
   // Compact header so the table can claim almost the entire page.
@@ -185,13 +190,6 @@ export async function generateWalkUpPDF(
     },
     didParseCell(data) {
       if (data.section !== "body") return;
-      const player = ordered[data.row.index];
-      if (player?.absent) {
-        // Whole row shaded medium grey — parent at-a-glance "skip this song".
-        data.cell.styles.fillColor = [200, 200, 200];
-        data.cell.styles.textColor = [110, 110, 110];
-        return;
-      }
       if (data.column.index === 2) {
         const raw = String(data.cell.raw || "");
         if (raw.startsWith("(suggested) ")) {
