@@ -106,6 +106,20 @@ export interface ConstraintConfig {
    * number-one player is out, the next one up inherits the spot.
    */
   pinsByRank?: Record<string, Record<string, string>>;
+  /**
+   * Per-inning eligibility for the restricted positions, widening as the
+   * game goes on: `restrictionRamp[inning]` is the topN cap for that inning,
+   * `null` meaning wide open.
+   *
+   * A single cap forces a bad choice. Tight, and the bottom of the roster
+   * never touches the infield all game. Loose, and the opening inning is a
+   * lottery. A ramp says both things: strongest infield to start, then feed
+   * the rest of the bench in as the game settles, so everyone can work their
+   * way up without the first inning being given away.
+   *
+   * Takes precedence over `restrictionInnings` when present.
+   */
+  restrictionRamp?: (number | null)[];
   topPlayerPriority: boolean;
   benchTopLate: boolean;
   prioritizeInfieldOverLateBench: boolean;

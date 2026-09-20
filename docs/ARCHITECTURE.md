@@ -47,7 +47,29 @@ absences are known.
 
 There is no UI for either yet; they are set directly on `constraint_config`.
 
-## Position restrictions are an opening-innings window
+## Position restrictions widen as the game goes on
+
+`restrictionRamp[inning]` is the topN cap in force that inning, `null`
+meaning open. It takes precedence over `restrictionInnings` and is
+authoritative -- it can clamp tighter than a position's own `topN` as well as
+open wider.
+
+One flat cap cannot say what a coach wants. Tight, and the bottom of the
+roster never touches the infield. Loose, and the opening inning is a lottery.
+A ramp says both: strongest infield to start, then feed the rest in as the
+game settles.
+
+Measured against a 13-present roster, `[5, 8, 11, 13, null, null]` puts every
+player in the infield at least once while the top five still take ~57% of
+infield innings, against a flat-fair share of 38%.
+
+The `null` tail matters more than it looks. A cap of 13 on a 13-player roster
+is not the same as no cap: every player then "qualifies" for a restriction, so
+`topPlayerPriority` engages for all of them and keeps handing the top of the
+roster first pick. `null` disengages priority entirely, which is what actually
+lets the bench mix in.
+
+## Position restrictions: the flat window (legacy)
 
 `restrictions` caps a position to the top `topN` players. `restrictionInnings`
 on `ConstraintConfig` says how many opening innings that cap is actually

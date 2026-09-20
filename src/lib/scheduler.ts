@@ -23,19 +23,42 @@ import { ConstraintConfig, PositionRestriction, DEFAULT_CONFIG, isOutfieldPositi
 
 function isOF(p: string): boolean { return isOutfieldPosition(p); }
 
+/**
+ * The topN cap in force for `inning`, or null if the position is open.
+ * A ramp entry wins over the flat window when one is configured.
+ */
+function capFor(
+  _r: PositionRestriction,
+  inning: number,
+  restrictionInnings?: number,
+  ramp?: (number | null)[],
+): number | null {
+  if (ramp) {
+    if (inning >= ramp.length) return null;
+    // The ramp is authoritative when set -- it must be able to open wider
+    // AND clamp tighter than the position's own topN.
+    const v = ramp[inning];
+    return v == null ? null : v;
+  }
+  if (restrictionInnings != null && inning >= restrictionInnings) return null;
+  return _r.topN;
+}
+
 function canPlay(
   rank: number,
   pos: Position,
   restrictions: PositionRestriction[],
   inning: number = 0,
-  restrictionInnings?: number
+  restrictionInnings?: number,
+  ramp?: (number | null)[]
 ): boolean {
   // Caps gate the opening innings only. Past the window every position is
   // open to everyone and the variety rules do the work. `undefined` keeps
   // the old all-game behaviour for configs saved before the window existed.
-  if (restrictionInnings != null && inning >= restrictionInnings) return true;
   for (const r of restrictions) {
-    if (r.enabled && r.position === pos && rank > r.topN) return false;
+    if (!r.enabled || r.position !== pos) continue;
+    const cap = capFor(r, inning, restrictionInnings, ramp);
+    if (cap != null && rank > cap) return false;
   }
   return true;
 }
@@ -503,11 +526,15 @@ function* solveInning(
     let posOrder: Position[];
     if (config.topPlayerPriority) {
       // Find the most restrictive topN this player qualifies for
-      const qualifiesFor = inRestrictionWindow(config, inn)
-        ? config.restrictions
-            .filter(r => r.enabled && player.rank <= r.topN)
-            .sort((a, b) => a.topN - b.topN)
-        : [];
+      // Priority tracks the same gate the caps use, so as the ramp widens the
+      // top players stop monopolising first pick and the bench feeds in.
+      const qualifiesFor = config.restrictions
+        .filter(r => {
+          if (!r.enabled) return false;
+          const cap = capFor(r, inn, config.restrictionInnings, config.restrictionRamp);
+          return cap != null && player.rank <= cap;
+        })
+        .sort((a, b) => a.topN - b.topN);
       const isRestricted = qualifiesFor.length > 0;
 
       if (isRestricted) {
@@ -579,7 +606,7 @@ function* solveInning(
           && !topInfieldRanks.has(player.rank)) continue;
 
       // Position restrictions
-      if (!pin && !canPlay(player.rank, pos, config.restrictions, inn, config.restrictionInnings)) continue;
+      if (!pin && !canPlay(player.rank, pos, config.restrictions, inn, config.restrictionInnings, config.restrictionRamp)) continue;
 
       // Max innings pitched check
       if (pos === "P" && config.maxInningsPitched != null) {
@@ -932,12 +959,13 @@ export function validateGameSheet(
     // is exempt by definition -- the coach named them. Reporting either as a
     // violation contradicts what the solver was told to do.
     for (const p of active) {
-      if (!inRestrictionWindow(config, i)) continue;
       const pinnedHere = config.pins?.[String(i)]?.[p.id];
       if (pinnedHere) continue;
       for (const r of config.restrictions) {
-        if (r.enabled && sheet[i][p.id] === r.position && p.rank > r.topN)
-          v.push(`Inning ${i+1}: ${p.name} at ${r.position} (top ${r.topN} only)`);
+        if (!r.enabled || sheet[i][p.id] !== r.position) continue;
+        const cap = capFor(r, i, config.restrictionInnings, config.restrictionRamp);
+        if (cap != null && p.rank > cap)
+          v.push(`Inning ${i+1}: ${p.name} at ${r.position} (top ${cap} only)`);
       }
     }
   }
