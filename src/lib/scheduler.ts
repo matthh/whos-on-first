@@ -735,6 +735,23 @@ export function generateGameSheet(
     }
   }
 
+  // Resolve rank-keyed pins against the present roster's effective ranks, then
+  // let the id-keyed path do the rest. Done here because effective rank only
+  // exists once absences are known.
+  if (config.pinsByRank) {
+    const byRank = new Map(present.map(p => [p.rank, p.id]));
+    const resolved: Record<string, Record<string, string>> = { ...(config.pins ?? {}) };
+    for (const [inn, ranks] of Object.entries(config.pinsByRank)) {
+      const forInning: Record<string, string> = { ...(resolved[inn] ?? {}) };
+      for (const [rank, pos] of Object.entries(ranks)) {
+        const id = byRank.get(Number(rank));
+        if (id) forInning[id] = pos;
+      }
+      resolved[inn] = forInning;
+    }
+    config = { ...config, pins: resolved };
+  }
+
   const bench = buildBench(present, innings, fieldSize, config.prioritizeInfieldOverLateBench, config.playoffMode);
   honourPins(bench, present, config.pins, innings);
   const posOrders = buildPositionOrders(config.fieldPositions, config.restrictions);

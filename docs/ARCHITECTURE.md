@@ -26,7 +26,15 @@ Three things make a pin stick:
 - A pin is exempt from the `topN` caps -- the coach naming a player has already
   made that judgement.
 
-There is no UI for pins yet; they are set directly on `constraint_config`.
+`pinsByRank[inning][rank] = position` is the same mechanism keyed by roster
+slot rather than player id, and is the one to prefer. "My top four start in the
+infield" is a statement about the slot, not the child: reorder the roster and
+the opening follows, where id-keyed pins would silently go stale. Ranks are
+*effective* ranks, so if the number-one player is absent the next one up
+inherits the spot. It resolves to `pins` inside `generateGameSheet()`, once
+absences are known.
+
+There is no UI for either yet; they are set directly on `constraint_config`.
 
 ## Position restrictions are an opening-innings window
 

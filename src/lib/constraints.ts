@@ -93,6 +93,19 @@ export interface ConstraintConfig {
    * before anyone else competes for the position.
    */
   pins?: Record<string, Record<string, string>>;
+  /**
+   * The same idea keyed by roster position instead of player identity:
+   * `pinsByRank[inning][rank] = position`, both 0-indexed inning and
+   * 1-based rank.
+   *
+   * This is what coaches actually mean by "my top four start in the
+   * infield" -- it is about the slot, not the child. Reorder the roster and
+   * the opening follows; pins keyed by player id would silently go stale.
+   *
+   * Ranks here are *effective* ranks (absent players skipped), so if the
+   * number-one player is out, the next one up inherits the spot.
+   */
+  pinsByRank?: Record<string, Record<string, string>>;
   topPlayerPriority: boolean;
   benchTopLate: boolean;
   prioritizeInfieldOverLateBench: boolean;
