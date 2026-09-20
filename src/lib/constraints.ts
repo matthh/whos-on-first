@@ -83,6 +83,16 @@ export interface ConstraintConfig {
    * setting existed behaved -- do not silently re-schedule an old team.
    */
   restrictionInnings?: number;
+  /**
+   * Fixed assignments a coach wants regardless of what the solver would
+   * pick: `pins[inning][playerId] = position`, inning 0-indexed.
+   *
+   * Restrictions express "who is allowed here", which cannot say "Sam R
+   * pitches the first inning". Pinning is that. A pinned player is kept off
+   * the bench for that inning, is exempt from the topN caps, and is assigned
+   * before anyone else competes for the position.
+   */
+  pins?: Record<string, Record<string, string>>;
   topPlayerPriority: boolean;
   benchTopLate: boolean;
   prioritizeInfieldOverLateBench: boolean;

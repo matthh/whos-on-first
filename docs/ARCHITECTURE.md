@@ -8,6 +8,26 @@ Who's On First is a single-user-per-coach web app that generates defensive posit
 
 ---
 
+## Pinned assignments
+
+`pins[inning][playerId] = position` (inning 0-indexed) fixes a player to a
+position regardless of what the solver would choose. Restrictions say *who is
+allowed* somewhere; they cannot say "Sam R pitches the first inning". Pinning
+is that.
+
+Three things make a pin stick:
+
+- `honourPins()` repairs the bench after `buildBench()`. The bench comes from a
+  rank-keyed template that knows nothing about pins, so a pinned player can land
+  on it. The repair sits someone else who is on the field that inning, is not
+  pinned, and whose benching does not create consecutive bench innings.
+- Pinned players sort first in `solveInning()`, so they take their position
+  before anyone else competes for it.
+- A pin is exempt from the `topN` caps -- the coach naming a player has already
+  made that judgement.
+
+There is no UI for pins yet; they are set directly on `constraint_config`.
+
 ## Position restrictions are an opening-innings window
 
 `restrictions` caps a position to the top `topN` players. `restrictionInnings`

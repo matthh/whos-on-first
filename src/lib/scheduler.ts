@@ -291,6 +291,37 @@ function buildBench(
   return generateDynamicBench(players, innings, fieldSize);
 }
 
+/**
+ * A pinned player cannot also be benched that inning. The bench comes from a
+ * rank-keyed template, so repair it: sit someone who is on the field that
+ * inning, is not pinned, and whose benching here does not create consecutive
+ * bench innings for them.
+ */
+function honourPins(
+  bench: Set<string>[],
+  present: Player[],
+  pins: Record<string, Record<string, string>> | undefined,
+  innings: number,
+): void {
+  if (!pins) return;
+  for (const [key, forInning] of Object.entries(pins)) {
+    const inn = Number(key);
+    if (!Number.isInteger(inn) || inn < 0 || inn >= innings) continue;
+    for (const playerId of Object.keys(forInning)) {
+      if (!bench[inn].has(playerId)) continue;
+      const swap = present.find(p =>
+        !bench[inn].has(p.id) &&
+        !forInning[p.id] &&
+        !(inn > 0 && bench[inn - 1].has(p.id)) &&
+        !(inn + 1 < innings && bench[inn + 1].has(p.id)));
+      if (swap) {
+        bench[inn].delete(playerId);
+        bench[inn].add(swap.id);
+      }
+    }
+  }
+}
+
 // ── OF eligibility ──────────────────────────────────────────────────
 
 /** Compute which innings each player is BLOCKED from playing OF. */
@@ -414,7 +445,12 @@ function* solveInning(
 
   // Sort: players who CAN'T play OF first (they must play IF),
   // then by rank (best first) for IF priority
+  const pinnedHere = config.pins?.[String(inn)] ?? {};
   const ordered = [...active].sort((a, b) => {
+    // Pinned players are placed first -- their position is not up for grabs.
+    const aPin = pinnedHere[a.id] ? 0 : 1;
+    const bPin = pinnedHere[b.id] ? 0 : 1;
+    if (aPin !== bPin) return aPin - bPin;
     const aCanOF = canPlayOF.has(a.id);
     const bCanOF = canPlayOF.has(b.id);
 
@@ -522,6 +558,9 @@ function* solveInning(
       .sort((a, b) => (a.n - b.n) || (a.i - b.i))
       .map((x) => x.p);
 
+    const pin = pinnedHere[player.id] as Position | undefined;
+    if (pin) posOrder = [pin];
+
     for (const pos of posOrder) {
       if (yieldCount >= MAX_YIELDS) return;
       if (used.has(pos)) continue;
@@ -540,7 +579,7 @@ function* solveInning(
           && !topInfieldRanks.has(player.rank)) continue;
 
       // Position restrictions
-      if (!canPlay(player.rank, pos, config.restrictions, inn, config.restrictionInnings)) continue;
+      if (!pin && !canPlay(player.rank, pos, config.restrictions, inn, config.restrictionInnings)) continue;
 
       // Max innings pitched check
       if (pos === "P" && config.maxInningsPitched != null) {
@@ -697,6 +736,7 @@ export function generateGameSheet(
   }
 
   const bench = buildBench(present, innings, fieldSize, config.prioritizeInfieldOverLateBench, config.playoffMode);
+  honourPins(bench, present, config.pins, innings);
   const posOrders = buildPositionOrders(config.fieldPositions, config.restrictions);
 
   const ofBenchAdjacency = config.positioning["of-bench-adjacency"] ?? true;
