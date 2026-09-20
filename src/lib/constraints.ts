@@ -67,6 +67,22 @@ export const DEFAULT_PRACTICE_CONFIG: PracticeConfig = {
 export interface ConstraintConfig {
   positioning: Record<string, boolean>; // constraint id -> enabled
   restrictions: PositionRestriction[];
+  /**
+   * How many opening innings the position restrictions actually gate.
+   *
+   * Coaches want the strongest infield on the field while the game is still
+   * live, then everybody rotating once it has settled. A cap that applies all
+   * six innings cannot express that: it either locks the same handful of kids
+   * into P/1B/SS/2B/3B all game or, switched off, gives no preference at all.
+   *
+   * Innings 1..restrictionInnings honour the topN caps; later innings ignore
+   * them and the ordinary variety rules (no-consecutive-position,
+   * max-2-per-position) take over.
+   *
+   * `undefined` means every inning, which is how configs saved before this
+   * setting existed behaved -- do not silently re-schedule an old team.
+   */
+  restrictionInnings?: number;
   topPlayerPriority: boolean;
   benchTopLate: boolean;
   prioritizeInfieldOverLateBench: boolean;
@@ -260,6 +276,7 @@ export const DEFAULT_CONFIG: ConstraintConfig = {
     POSITIONING_CONSTRAINTS.map((c) => [c.id, c.enabled])
   ),
   restrictions: DEFAULT_RESTRICTIONS,
+  restrictionInnings: 2,
   topPlayerPriority: true,
   benchTopLate: true,
   prioritizeInfieldOverLateBench: true,

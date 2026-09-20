@@ -1,12 +1,35 @@
 # Who's On First — Architecture
 
-**Last reviewed: 2026-09-08**
+**Last reviewed: 2026-09-20**
 
 ## Purpose
 
-Who's On First is a single-user-per-coach web app that generates defensive position assignments for youth baseball / softball games. A coach manages a roster of 10–13 players, marks absent players before each game, and clicks Generate to produce a per-inning lineup that satisfies a configurable constraint set (positional restrictions, fairness rules, outfield rotations, etc.). The sheet is exportable as a PDF. An optional Spotify integration auto-builds a walk-on-music playlist in batting order.
+Who's On First is a single-user-per-coach web app that generates defensive position assignments for youth baseball / softball games. A coach manages a roster of up to 20 players, marks absent players before each game, and clicks Generate to produce a per-inning lineup that satisfies a configurable constraint set (positional restrictions, fairness rules, outfield rotations, etc.). The sheet is exportable as a PDF. An optional Spotify integration auto-builds a walk-on-music playlist in batting order.
 
 ---
+
+## Position restrictions are an opening-innings window
+
+`restrictions` caps a position to the top `topN` players. `restrictionInnings`
+on `ConstraintConfig` says how many opening innings that cap is actually
+enforced for; the default for new configs is **2**.
+
+This exists because a cap that runs the whole game cannot say what coaches
+actually want. Left on for six innings it locks the same handful of kids into
+P/1B/SS/2B/3B all game. Switched off it gives no preference at all -- and
+crucially it also disables `topPlayerPriority`, which only engages for players
+qualifying for an *enabled* restriction. A team with every restriction
+unchecked therefore gets no infield preference whatsoever, which reads as a
+bug ("my best players aren't getting the infield") but is the configuration
+doing exactly what it says.
+
+Inside the window the caps and top-player priority both apply. Past it
+`canPlay()` returns true for everyone and the ordinary variety rules --
+`no-consecutive-position`, `max-2-per-position` -- do the mixing.
+
+`restrictionInnings: undefined` means every inning, which is how configs saved
+before this setting behaved. Do not coerce it to a default on load: that would
+silently re-schedule an existing team.
 
 ## Roster size
 

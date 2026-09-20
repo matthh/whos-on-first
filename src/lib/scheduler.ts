@@ -26,12 +26,23 @@ function isOF(p: string): boolean { return isOutfieldPosition(p); }
 function canPlay(
   rank: number,
   pos: Position,
-  restrictions: PositionRestriction[]
+  restrictions: PositionRestriction[],
+  inning: number = 0,
+  restrictionInnings?: number
 ): boolean {
+  // Caps gate the opening innings only. Past the window every position is
+  // open to everyone and the variety rules do the work. `undefined` keeps
+  // the old all-game behaviour for configs saved before the window existed.
+  if (restrictionInnings != null && inning >= restrictionInnings) return true;
   for (const r of restrictions) {
     if (r.enabled && r.position === pos && rank > r.topN) return false;
   }
   return true;
+}
+
+/** True while the opening-innings restriction window is still in force. */
+function inRestrictionWindow(config: ConstraintConfig, inning: number): boolean {
+  return config.restrictionInnings == null || inning < config.restrictionInnings;
 }
 
 /** Count how many OF innings a player has been assigned so far. */
@@ -456,9 +467,11 @@ function* solveInning(
     let posOrder: Position[];
     if (config.topPlayerPriority) {
       // Find the most restrictive topN this player qualifies for
-      const qualifiesFor = config.restrictions
-        .filter(r => r.enabled && player.rank <= r.topN)
-        .sort((a, b) => a.topN - b.topN);
+      const qualifiesFor = inRestrictionWindow(config, inn)
+        ? config.restrictions
+            .filter(r => r.enabled && player.rank <= r.topN)
+            .sort((a, b) => a.topN - b.topN)
+        : [];
       const isRestricted = qualifiesFor.length > 0;
 
       if (isRestricted) {
@@ -527,7 +540,7 @@ function* solveInning(
           && !topInfieldRanks.has(player.rank)) continue;
 
       // Position restrictions
-      if (!canPlay(player.rank, pos, config.restrictions)) continue;
+      if (!canPlay(player.rank, pos, config.restrictions, inn, config.restrictionInnings)) continue;
 
       // Max innings pitched check
       if (pos === "P" && config.maxInningsPitched != null) {

@@ -207,6 +207,26 @@ export default function ConstraintsPanel({
               );
             })()}
 
+            {/* How long the caps stay in force */}
+            <div className="flex items-center gap-2 px-3 py-2 mb-2 rounded-lg border border-amber-200 bg-amber-50">
+              <span className="text-xs text-gray-700">Apply these for the first</span>
+              <input
+                type="number"
+                min={1}
+                max={config.innings ?? 6}
+                value={config.restrictionInnings ?? (config.innings ?? 6)}
+                onChange={(e) => {
+                  const max = config.innings ?? 6;
+                  const n = Math.max(1, Math.min(max, parseInt(e.target.value) || 1));
+                  onChange({ ...config, restrictionInnings: n });
+                }}
+                className="w-14 text-sm text-center border border-gray-300 rounded py-1 outline-none focus:border-[#002d62]"
+              />
+              <span className="text-xs text-gray-700">
+                innings, then open every position up
+              </span>
+            </div>
+
             {/* Restriction rows */}
             <div className="space-y-2">
               {config.restrictions.map((r, idx) => (
