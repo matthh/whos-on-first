@@ -1,6 +1,6 @@
 # Who's On First — Architecture
 
-**Last reviewed: 2026-09-22**
+**Last reviewed: 2026-10-06**
 
 ## Purpose
 
@@ -321,9 +321,11 @@ The solver uses hardcoded bench schedules for the standard 6-inning / 10-field-s
 8. ~~**`/api/admin/users` GET is unbounded**~~ — **Fixed 2026-09-01**: `.limit(500)` added.
 9. ~~**`teams/[id]/route.ts` DELETE fetches all team rows for count check**~~ — **Fixed 2026-09-01**: replaced `.length` check with `COUNT(*)::int`.
 10. ~~**`/api/auth/spotify-status` exposes `serviceUserId`**~~ — **Fixed 2026-09-01**: removed from response.
-11. **Remaining CVEs in devDependencies** — `esbuild` (via `drizzle-kit`) has moderate-severity advisories (dev-only tool, no production exposure). The `postcss` bundled inside `next` now carries **HIGH**-severity advisories (GHSA-qx2v-qp2m-jg93 XSS, GHSA-6g55-p6wh-862q / GHSA-fxqj-rqcc-2cmp / GHSA-r28c-9q8g-f849 path traversal). These affect build tooling, not app users at runtime, but fixing the next/postcss pairing requires upgrading to Next.js 16 (a breaking change). Track for resolution on the next major-version upgrade cycle.
+11. **Remaining CVEs in devDependencies** — `esbuild` (via `drizzle-kit`) has moderate-severity advisories (dev-only tool, no production exposure). The `postcss` bundled inside `next` carries **HIGH**-severity advisories (GHSA-qx2v-qp2m-jg93 XSS, GHSA-6g55-p6wh-862q / GHSA-fxqj-rqcc-2cmp / GHSA-r28c-9q8g-f849 path traversal); fixing this requires upgrading to Next.js 16 (breaking change). `braces`/`micromatch`/`fast-glob` (HIGH, DoS via stack exhaustion) and `dompurify` (LOW) are transitive dev/build deps with no production runtime exposure. These affect build tooling only. Track for resolution on the next major-version upgrade cycle. See AUDIT-2026-10-06 for current advisory list.
 12. **`getValidAccessToken` is dead code** — `lib/spotify.ts` exports `getValidAccessToken(userId)`, the legacy per-coach OAuth token-refresh helper, but it is never imported by any route. All Spotify calls use `getValidServiceAccessToken()`. The per-coach callback still writes tokens to `users` but nothing reads them for outbound API calls. Can be safely removed alongside the legacy callback/connect routes if per-coach OAuth is being fully retired.
 13. **Google OAuth name not HTML-sanitized** — `google-login-callback/route.ts` stores `profile.name` directly on user insert/link without stripping HTML. All other name write paths (admin PATCH, roster PUT `coachName`) strip tags and cap at 100 chars. XSS risk is low (React escapes output), but the inconsistency should be fixed for defence in depth. See AUDIT-2026-09-22 L-1 for recommended fix.
+
+*Items resolved in 2026-10-06 audit: `source-map-js` HIGH (GHSA-68fv-2mgg-jv7q) and `brace-expansion` DoS advisories patched via `npm audit fix`; no production runtime impact.*
 
 *Items resolved in 2026-09-08 audit: fflate 0.8.2 → 0.8.3 via `npm audit fix` (GHSA-px8p-9vwx-vf98 moderate, jsPDF dependency). L-new: admin PATCH email update now catches 23505 constraint violation and returns 409 instead of 500.*
 
