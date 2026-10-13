@@ -1,6 +1,6 @@
 # Who's On First — Architecture
 
-**Last reviewed: 2026-10-06**
+**Last reviewed: 2026-10-13**
 
 ## Purpose
 
@@ -311,7 +311,7 @@ The solver uses hardcoded bench schedules for the standard 6-inning / 10-field-s
 
 ## Tech debt
 
-1. **`logoDataUrl` has no size limit** in the roster `PUT` route — a large base64 image can be stored without bounds (the Onboarding UI caps file upload at 2 MB, but direct API callers bypass this). See AUDIT-2026-09-22 M-1 for recommended fix.
+1. ~~**`logoDataUrl` has no size limit**~~ — **Fixed 2026-10-13**: roster `PUT` now returns HTTP 413 if `logoDataUrl.length > 3_000_000` (≈ 2.25 MB raw), matching the Onboarding UI's 2 MB client-side cap.
 2. **`constraint_overrides` table** exists in schema and migrations but is completely unused. Dead code at the DB layer.
 3. **`storage.ts` is stale** — `loadRoster` / `saveRoster` check `typeof window` for SSR safety but the module is still imported in lib context. Recommend pruning or converting to pure utility functions.
 4. **No rate limiting** on `/api/spotify/sync-playlist` or `/api/practice/generate-station` — both make expensive third-party calls (Spotify API, Anthropic) without any throttling.
@@ -323,7 +323,9 @@ The solver uses hardcoded bench schedules for the standard 6-inning / 10-field-s
 10. ~~**`/api/auth/spotify-status` exposes `serviceUserId`**~~ — **Fixed 2026-09-01**: removed from response.
 11. **Remaining CVEs in devDependencies** — `esbuild` (via `drizzle-kit`) has moderate-severity advisories (dev-only tool, no production exposure). The `postcss` bundled inside `next` carries **HIGH**-severity advisories (GHSA-qx2v-qp2m-jg93 XSS, GHSA-6g55-p6wh-862q / GHSA-fxqj-rqcc-2cmp / GHSA-r28c-9q8g-f849 path traversal); fixing this requires upgrading to Next.js 16 (breaking change). `braces`/`micromatch`/`fast-glob` (HIGH, DoS via stack exhaustion) and `dompurify` (LOW) are transitive dev/build deps with no production runtime exposure. These affect build tooling only. Track for resolution on the next major-version upgrade cycle. See AUDIT-2026-10-06 for current advisory list.
 12. **`getValidAccessToken` is dead code** — `lib/spotify.ts` exports `getValidAccessToken(userId)`, the legacy per-coach OAuth token-refresh helper, but it is never imported by any route. All Spotify calls use `getValidServiceAccessToken()`. The per-coach callback still writes tokens to `users` but nothing reads them for outbound API calls. Can be safely removed alongside the legacy callback/connect routes if per-coach OAuth is being fully retired.
-13. **Google OAuth name not HTML-sanitized** — `google-login-callback/route.ts` stores `profile.name` directly on user insert/link without stripping HTML. All other name write paths (admin PATCH, roster PUT `coachName`) strip tags and cap at 100 chars. XSS risk is low (React escapes output), but the inconsistency should be fixed for defence in depth. See AUDIT-2026-09-22 L-1 for recommended fix.
+13. ~~**Google OAuth name not HTML-sanitized**~~ — **Fixed 2026-10-13**: `google-login-callback/route.ts` now strips HTML tags and caps at 100 chars on both the insert (new user) and link (existing account) paths, matching every other name-write path.
+
+*Items resolved in 2026-10-13 audit: TD-1 (`logoDataUrl` size limit — HTTP 413 guard added to roster PUT), TD-13 (Google OAuth name sanitization — HTML strip + 100-char cap applied on insert/link), AUDIT-2026-10-06 L-5 (spotify/search query length cap — `.slice(0, 200)` applied). `sharp` HIGH CVE-2026-96889 (use-after-free in librsvg, production transitive dep via `next`) patched to 0.35.5 via `npm audit fix`.*
 
 *Items resolved in 2026-10-06 audit: `source-map-js` HIGH (GHSA-68fv-2mgg-jv7q) and `brace-expansion` DoS advisories patched via `npm audit fix`; no production runtime impact.*
 

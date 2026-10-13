@@ -69,6 +69,10 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: "Invalid config: must be an object" }, { status: 400 });
   }
 
+  if (config !== undefined && typeof config?.logoDataUrl === "string" && config.logoDataUrl.length > 3_000_000) {
+    return NextResponse.json({ error: "Logo too large (max ~2 MB)" }, { status: 413 });
+  }
+
   // Resolve active team, or create one lazily on first write during onboarding.
   let team = await getActiveTeam(request);
   if (!team) {

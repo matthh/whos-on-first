@@ -92,7 +92,9 @@ export async function GET(request: NextRequest) {
 
     const profile = await profileRes.json();
     const email = profile.email?.toLowerCase().trim();
-    const name = profile.name || null;
+    const rawName: string | null = profile.name || null;
+    // Strip HTML and cap length — matches every other name-write path in the codebase.
+    const name = rawName ? rawName.replace(/<[^>]*>/g, "").slice(0, 100) : null;
     const googleId = profile.id;
 
     if (!email) {

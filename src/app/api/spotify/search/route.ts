@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Account not approved" }, { status: 403 });
   }
 
-  const q = new URL(request.url).searchParams.get("q")?.trim();
+  const q = new URL(request.url).searchParams.get("q")?.trim().slice(0, 200);
   if (!q) return NextResponse.json({ tracks: [] });
 
   const token = await getValidServiceAccessToken();
