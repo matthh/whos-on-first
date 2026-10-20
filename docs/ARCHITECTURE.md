@@ -1,6 +1,6 @@
 # Who's On First — Architecture
 
-**Last reviewed: 2026-10-13**
+**Last reviewed: 2026-10-20**
 
 ## Purpose
 
@@ -317,13 +317,15 @@ The solver uses hardcoded bench schedules for the standard 6-inning / 10-field-s
 4. **No rate limiting** on `/api/spotify/sync-playlist` or `/api/practice/generate-station` — both make expensive third-party calls (Spotify API, Anthropic) without any throttling.
 5. **No Content-Security-Policy header** — `next.config.ts` sets `X-Frame-Options`, `X-Content-Type-Options`, and `Referrer-Policy`, but no CSP.
 6. **No test suite** — the scheduler (`lib/scheduler.ts`) and constraint logic (`lib/constraints.ts`) are pure functions with complex behaviour but have no unit tests.
-7. **AI model ID may go stale** — `claude-haiku-4-5-20251001` is hardcoded in `src/app/api/practice/generate-station/route.ts`. There is no `check:models` script in this project; if the model is retired, the endpoint will return 502 errors silently. Review model ID periodically.
+7. **AI model ID may go stale** — `claude-haiku-4-5-20251001` is hardcoded in `src/app/api/practice/generate-station/route.ts`. There is no `check:models` script in this project; if the model is retired, the endpoint will return 502 errors silently. **This model is now over 1 year old (released 2025-10-01).** Review and update model ID — see AUDIT-2026-10-20 M-1.
 8. ~~**`/api/admin/users` GET is unbounded**~~ — **Fixed 2026-09-01**: `.limit(500)` added.
 9. ~~**`teams/[id]/route.ts` DELETE fetches all team rows for count check**~~ — **Fixed 2026-09-01**: replaced `.length` check with `COUNT(*)::int`.
 10. ~~**`/api/auth/spotify-status` exposes `serviceUserId`**~~ — **Fixed 2026-09-01**: removed from response.
 11. **Remaining CVEs in devDependencies** — `esbuild` (via `drizzle-kit`) has moderate-severity advisories (dev-only tool, no production exposure). The `postcss` bundled inside `next` carries **HIGH**-severity advisories (GHSA-qx2v-qp2m-jg93 XSS, GHSA-6g55-p6wh-862q / GHSA-fxqj-rqcc-2cmp / GHSA-r28c-9q8g-f849 path traversal); fixing this requires upgrading to Next.js 16 (breaking change). `braces`/`micromatch`/`fast-glob` (HIGH, DoS via stack exhaustion) and `dompurify` (LOW) are transitive dev/build deps with no production runtime exposure. These affect build tooling only. Track for resolution on the next major-version upgrade cycle. See AUDIT-2026-10-06 for current advisory list.
 12. **`getValidAccessToken` is dead code** — `lib/spotify.ts` exports `getValidAccessToken(userId)`, the legacy per-coach OAuth token-refresh helper, but it is never imported by any route. All Spotify calls use `getValidServiceAccessToken()`. The per-coach callback still writes tokens to `users` but nothing reads them for outbound API calls. Can be safely removed alongside the legacy callback/connect routes if per-coach OAuth is being fully retired.
 13. ~~**Google OAuth name not HTML-sanitized**~~ — **Fixed 2026-10-13**: `google-login-callback/route.ts` now strips HTML tags and caps at 100 chars on both the insert (new user) and link (existing account) paths, matching every other name-write path.
+
+*Items resolved in 2026-10-20 audit: No code changes — docs-only update. Model ID age escalated in TD-7.*
 
 *Items resolved in 2026-10-13 audit: TD-1 (`logoDataUrl` size limit — HTTP 413 guard added to roster PUT), TD-13 (Google OAuth name sanitization — HTML strip + 100-char cap applied on insert/link), AUDIT-2026-10-06 L-5 (spotify/search query length cap — `.slice(0, 200)` applied). `sharp` HIGH CVE-2026-96889 (use-after-free in librsvg, production transitive dep via `next`) patched to 0.35.5 via `npm audit fix`.*
 
