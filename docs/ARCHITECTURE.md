@@ -1,6 +1,6 @@
 # Who's On First — Architecture
 
-**Last reviewed: 2026-11-03**
+**Last reviewed: 2026-11-10**
 
 ## Purpose
 
@@ -317,7 +317,7 @@ The solver uses hardcoded bench schedules for the standard 6-inning / 10-field-s
 4. **No rate limiting** on `/api/spotify/sync-playlist` or `/api/practice/generate-station` — both make expensive third-party calls (Spotify API, Anthropic) without any throttling.
 5. **No Content-Security-Policy header** — `next.config.ts` sets `X-Frame-Options`, `X-Content-Type-Options`, and `Referrer-Policy`, but no CSP.
 6. **No test suite** — the scheduler (`lib/scheduler.ts`) and constraint logic (`lib/constraints.ts`) are pure functions with complex behaviour but have no unit tests.
-7. **AI model ID is HIGH risk** — `claude-haiku-4-5-20251001` is hardcoded in `src/app/api/practice/generate-station/route.ts`. There is no `check:models` script in this project; if the model is retired, the endpoint will return 502 errors silently. **This model is now 13 months old (released 2025-10-01) — escalated to High in AUDIT-2026-10-27.** Update to `claude-haiku-5-5` (current Haiku) after verifying the API call and JSON-output behaviour are unchanged.
+7. **AI model ID is CRITICAL** — `claude-haiku-4-5-20251001` is hardcoded in `src/app/api/practice/generate-station/route.ts`. There is no `check:models` script in this project; if the model is retired, the endpoint will return 502 errors silently. **This model is now 15 months old (released 2025-10-01) — escalated to Critical in AUDIT-2026-11-03; persists in AUDIT-2026-11-10.** Update to `claude-haiku-5-5` (current Haiku) after verifying the API call and JSON-output behaviour are unchanged. Build verification is required before commit — node_modules must be installed in the working environment.
 8. ~~**`/api/admin/users` GET is unbounded**~~ — **Fixed 2026-09-01**: `.limit(500)` added.
 9. ~~**`teams/[id]/route.ts` DELETE fetches all team rows for count check**~~ — **Fixed 2026-09-01**: replaced `.length` check with `COUNT(*)::int`.
 10. ~~**`/api/auth/spotify-status` exposes `serviceUserId`**~~ — **Fixed 2026-09-01**: removed from response.
