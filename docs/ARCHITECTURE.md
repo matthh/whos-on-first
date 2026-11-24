@@ -1,6 +1,6 @@
 # Who's On First — Architecture
 
-**Last reviewed: 2026-11-17**
+**Last reviewed: 2026-11-24**
 
 ## Purpose
 
